@@ -20,6 +20,40 @@ from torch.utils.data import DistributedSampler, RandomSampler
 from torch import distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from semseg.utils.utils import fix_seeds, setup_cudnn, cleanup_ddp, setup_ddp, get_logger, cal_flops, print_iou
+# import Image
+from PIL import Image
+
+semseg_dict = {
+    "num_classes": 19,
+    "ignore_label": 255,
+    "class_names": [
+        "road", "sidewalk", "building", "wall", "fence",
+        "pole", "traffic light", "traffic sign", "vegetation", "terrain",
+        "sky", "person", "rider", "car", "truck", "bus",
+        "train", "motorcycle", "bicycle"
+    ],
+    "color_map": np.array([
+        [128, 64, 128],      # road
+        [244, 35, 232],      # sidewalk
+        [70, 70, 70],        # building
+        [102, 102, 156],     # wall
+        [190, 153, 153],     # fence
+        [153, 153, 153],     # pole
+        [250, 170, 30],      # traffic light
+        [220, 220, 0],       # traffic sign
+        [107, 142, 35],      # vegetation
+        [152, 251, 152],     # terrain
+        [70, 130, 180],      # sky
+        [220, 20, 60],       # person
+        [255, 0, 0],         # rider
+        [0, 0, 142],         # car
+        [0, 0, 70],          # truck
+        [0, 60, 100],        # bus
+        [0, 80, 100],        # train
+        [0, 0, 230],         # motorcycle
+        [119, 11, 32]        # bicycle
+    ])
+}
 
 def pad_image(img, target_size):
     rows_to_pad = max(target_size[0] - img.shape[2], 0)
@@ -62,19 +96,32 @@ def sliding_predict(model, image, num_classes, flip=True):
     return total_predictions.unsqueeze(0)
 
 @torch.no_grad()
-def evaluate(model, dataloader, device):
+def evaluate(model, dataloader, device, save_dir):
     print('Evaluating...')
     model.eval()
     n_classes = dataloader.dataset.n_classes
     metrics = Metrics(n_classes, dataloader.dataset.ignore_label, device)
     sliding = False
-    for images, labels in tqdm(dataloader):
+    for seq_names, seq_index, images, labels in tqdm(dataloader):
+        print(labels.shape)
+        print(images[0].shape, images[1].shape, len(images))
         images = [x.to(device) for x in images]
         labels = labels.to(device)
         if sliding:
             preds = sliding_predict(model, images, num_classes=n_classes).softmax(dim=1)
         else:
             preds = model(images).softmax(dim=1)
+
+        # 保存图像
+        save_path = Path(save_dir) / seq_names[0]
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+        for i, idx in enumerate(seq_index):
+            print(preds[i].shape, preds[i].max(), preds[i].min())
+            rgb_image = semseg_dict['color_map'][preds[i].cpu().numpy().astype(np.int32)]
+            # 将numpy数组转换为PIL图像
+            rgb_image = Image.fromarray(rgb_image)
+            rgb_image.save(save_path / f'{idx}_color.png')
         metrics.update(preds, labels)
     
     ious, miou = metrics.compute_iou()
@@ -120,7 +167,7 @@ def evaluate_msf(model, dataloader, device, scales, flip):
     return acc, macc, f1, mf1, ious, miou
 
 
-def main(cfg):
+def main(cfg, scene):
     device = torch.device(cfg['DEVICE'])
 
     eval_cfg = cfg['EVAL']
@@ -135,7 +182,8 @@ def main(cfg):
     print(f"Evaluating {model_path}...")
 
     exp_time = time.strftime('%Y%m%d_%H%M%S', time.localtime())
-    eval_path = os.path.join(os.path.dirname(eval_cfg['MODEL_PATH']), 'eval_{}.txt'.format(exp_time))
+    save_dir  = os.path.join(os.path.dirname(eval_cfg['MODEL_PATH']), '{}_eval_{}'.format(scene, exp_time))
+    eval_path = os.path.join(os.path.dirname(eval_cfg['MODEL_PATH']), '{}_eval_{}.txt'.format(scene, exp_time))
 
     for case in cases:
         dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'], 'val', transform, cfg['DATASET']['MODALS'], case)
@@ -143,7 +191,7 @@ def main(cfg):
         # dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'], 'test', transform, cfg['DATASET']['MODALS'], case)
 
         model = eval(cfg['MODEL']['NAME'])(cfg['MODEL']['BACKBONE'], dataset.n_classes, cfg['DATASET']['MODALS'])
-        msg = model.load_state_dict(torch.load(str(model_path), map_location='cpu'))
+        msg = model.load_state_dict(torch.load(str(model_path), map_location='cuda'))
         print(msg)
         model = model.to(device)
         sampler_val = None
@@ -152,7 +200,7 @@ def main(cfg):
             if eval_cfg['MSF']['ENABLE']:
                 acc, macc, f1, mf1, ious, miou = evaluate_msf(model, dataloader, device, eval_cfg['MSF']['SCALES'], eval_cfg['MSF']['FLIP'])
             else:
-                acc, macc, f1, mf1, ious, miou = evaluate(model, dataloader, device)
+                acc, macc, f1, mf1, ious, miou = evaluate(model, dataloader, device, save_dir)
 
             table = {
                 'Class': list(dataset.CLASSES) + ['Mean'],
@@ -174,6 +222,7 @@ def main(cfg):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfg', type=str, default='configs/DELIVER.yaml')
+    parser.add_argument('--scene', type=str, default='night')
     args = parser.parse_args()
 
     with open(args.cfg) as f:
@@ -182,4 +231,4 @@ if __name__ == '__main__':
     setup_cudnn()
     # gpu = setup_ddp()
     # main(cfg, gpu)
-    main(cfg)
+    main(cfg, args.scene)
