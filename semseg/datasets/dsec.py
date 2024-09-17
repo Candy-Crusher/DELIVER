@@ -52,15 +52,13 @@ class DSEC(Dataset):
         seq_idx = Path(rgb).parts[-1].split('_')[0]
 
         sample = {}
-        sample['img'] = io.read_image(rgb)[:3, ...][:, :-40]
+        sample['img'] = io.read_image(rgb)[:3, ...][:, :440]
         H, W = sample['img'].shape[1:]
         if 'event' in self.modals:
             data= np.load(event_path, allow_pickle=True).item()
-            sample['event'] = data['representation']['left']['T03'].clone().detach()[:, :-40]
+            sample['event'] = data['representation']['left']['T03'].clone().detach()[:, :440]
         label = io.read_image(lbl_path)[0,...].unsqueeze(0)
-        sample['mask'] = label[:, :-40]
-
-        
+        sample['mask'] = label[:, :440]
         if self.transform:
             sample = self.transform(sample)
         label = sample['mask']

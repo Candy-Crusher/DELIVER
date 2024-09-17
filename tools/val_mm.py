@@ -103,8 +103,6 @@ def evaluate(model, dataloader, device, save_dir):
     metrics = Metrics(n_classes, dataloader.dataset.ignore_label, device)
     sliding = False
     for seq_names, seq_index, images, labels in tqdm(dataloader):
-        print(labels.shape)
-        print(images[0].shape, images[1].shape, len(images))
         images = [x.to(device) for x in images]
         labels = labels.to(device)
         if sliding:
@@ -117,10 +115,11 @@ def evaluate(model, dataloader, device, save_dir):
         if not os.path.exists(save_path):
             os.makedirs(save_path)
         for i, idx in enumerate(seq_index):
-            print(preds[i].shape, preds[i].max(), preds[i].min())
-            rgb_image = semseg_dict['color_map'][preds[i].cpu().numpy().astype(np.int32)]
+            # 把shape为(19, H, W)的预测结果转换为(H, W)的numpy数组
+            pred_argmax = preds[i].argmax(dim=0)
+            rgb_image = semseg_dict['color_map'][pred_argmax.cpu().numpy().astype(np.uint8)]
             # 将numpy数组转换为PIL图像
-            rgb_image = Image.fromarray(rgb_image)
+            rgb_image = Image.fromarray(rgb_image.astype(np.uint8))
             rgb_image.save(save_path / f'{idx}_color.png')
         metrics.update(preds, labels)
     
