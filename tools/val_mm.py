@@ -96,7 +96,7 @@ def sliding_predict(model, image, num_classes, flip=True):
     return total_predictions.unsqueeze(0)
 
 @torch.no_grad()
-def evaluate(model, dataloader, device, save_dir):
+def evaluate(model, dataloader, device, save_dir=None):
     print('Evaluating...')
     model.eval()
     n_classes = dataloader.dataset.n_classes
@@ -111,16 +111,17 @@ def evaluate(model, dataloader, device, save_dir):
             preds = model(images).softmax(dim=1)
 
         # 保存图像
-        save_path = Path(save_dir) / seq_names[0]
-        if not os.path.exists(save_path):
-            os.makedirs(save_path)
-        for i, idx in enumerate(seq_index):
-            # 把shape为(19, H, W)的预测结果转换为(H, W)的numpy数组
-            pred_argmax = preds[i].argmax(dim=0)
-            rgb_image = semseg_dict['color_map'][pred_argmax.cpu().numpy().astype(np.uint8)]
-            # 将numpy数组转换为PIL图像
-            rgb_image = Image.fromarray(rgb_image.astype(np.uint8))
-            rgb_image.save(save_path / f'{idx}_color.png')
+        if save_dir is not None:
+            save_path = Path(save_dir) / seq_names[0]
+            if not os.path.exists(save_path):
+                os.makedirs(save_path)
+            for i, idx in enumerate(seq_index):
+                # 把shape为(19, H, W)的预测结果转换为(H, W)的numpy数组
+                pred_argmax = preds[i].argmax(dim=0)
+                rgb_image = semseg_dict['color_map'][pred_argmax.cpu().numpy().astype(np.uint8)]
+                # 将numpy数组转换为PIL图像
+                rgb_image = Image.fromarray(rgb_image.astype(np.uint8))
+                rgb_image.save(save_path / f'{idx}_color.png')
         metrics.update(preds, labels)
     
     ious, miou = metrics.compute_iou()

@@ -21,13 +21,48 @@ from semseg.schedulers import get_scheduler
 from semseg.optimizers import get_optimizer
 from semseg.utils.utils import fix_seeds, setup_cudnn, cleanup_ddp, setup_ddp, get_logger, cal_flops, print_iou
 from val_mm import evaluate
+import numpy as np
+# import Image
+from PIL import Image
+
+semseg_dict = {
+    "num_classes": 19,
+    "ignore_label": 255,
+    "class_names": [
+        "road", "sidewalk", "building", "wall", "fence",
+        "pole", "traffic light", "traffic sign", "vegetation", "terrain",
+        "sky", "person", "rider", "car", "truck", "bus",
+        "train", "motorcycle", "bicycle"
+    ],
+    "color_map": np.array([
+        [128, 64, 128],      # road
+        [244, 35, 232],      # sidewalk
+        [70, 70, 70],        # building
+        [102, 102, 156],     # wall
+        [190, 153, 153],     # fence
+        [153, 153, 153],     # pole
+        [250, 170, 30],      # traffic light
+        [220, 220, 0],       # traffic sign
+        [107, 142, 35],      # vegetation
+        [152, 251, 152],     # terrain
+        [70, 130, 180],      # sky
+        [220, 20, 60],       # person
+        [255, 0, 0],         # rider
+        [0, 0, 142],         # car
+        [0, 0, 70],          # truck
+        [0, 60, 100],        # bus
+        [0, 80, 100],        # train
+        [0, 0, 230],         # motorcycle
+        [119, 11, 32]        # bicycle
+    ])
+}
 
 
-def main(cfg, gpu, save_dir):
+def main(cfg, scene, gpu, save_dir):
     start = time.time()
     best_mIoU = 0.0
     best_epoch = 0
-    num_workers = 8
+    num_workers = 32
     device = torch.device(cfg['DEVICE'])
     train_cfg, eval_cfg = cfg['TRAIN'], cfg['EVAL']
     dataset_cfg, model_cfg = cfg['DATASET'], cfg['MODEL']
@@ -75,8 +110,8 @@ def main(cfg, gpu, save_dir):
         loss = resume_checkpoint['loss']        
         best_mIoU = resume_checkpoint['best_miou']
            
-    trainloader = DataLoader(trainset, batch_size=train_cfg['BATCH_SIZE'], num_workers=num_workers, drop_last=True, pin_memory=False, sampler=sampler)
-    valloader = DataLoader(valset, batch_size=eval_cfg['BATCH_SIZE'], num_workers=num_workers, pin_memory=False, sampler=sampler_val)
+    trainloader = DataLoader(trainset, batch_size=train_cfg['BATCH_SIZE'], num_workers=num_workers, drop_last=True, pin_memory=True, sampler=sampler)
+    valloader = DataLoader(valset, batch_size=eval_cfg['BATCH_SIZE'], num_workers=num_workers, pin_memory=True, sampler=sampler_val)
 
     scaler = GradScaler(enabled=train_cfg['AMP'])
     if (train_cfg['DDP'] and torch.distributed.get_rank() == 0) or (not train_cfg['DDP']):
@@ -97,7 +132,7 @@ def main(cfg, gpu, save_dir):
         lr = sum(lr) / len(lr)
         pbar = tqdm(enumerate(trainloader), total=iters_per_epoch, desc=f"Epoch: [{epoch+1}/{epochs}] Iter: [{0}/{iters_per_epoch}] LR: {lr:.8f} Loss: {train_loss:.8f}")
 
-        for iter, (sample, lbl) in pbar:
+        for iter, (seq_names, seq_index, sample, lbl) in pbar:
             optimizer.zero_grad(set_to_none=True)
             sample = [x.to(device) for x in sample]
             lbl = lbl.to(device)
@@ -123,7 +158,7 @@ def main(cfg, gpu, save_dir):
         train_loss /= iter+1
         if (train_cfg['DDP'] and torch.distributed.get_rank() == 0) or (not train_cfg['DDP']):
             writer.add_scalar('train/loss', train_loss, epoch)
-        torch.cuda.empty_cache()
+        # torch.cuda.empty_cache()
 
         if ((epoch+1) % train_cfg['EVAL_INTERVAL'] == 0 and (epoch+1)>train_cfg['EVAL_START']) or (epoch+1) == epochs:
             if (train_cfg['DDP'] and torch.distributed.get_rank() == 0) or (not train_cfg['DDP']):
@@ -166,6 +201,7 @@ def main(cfg, gpu, save_dir):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfg', type=str, default='configs/deliver_rgbdel.yaml', help='Configuration file to use')
+    parser.add_argument('--scene', type=str, default='night')
     args = parser.parse_args()
 
     with open(args.cfg) as f:
@@ -182,5 +218,5 @@ if __name__ == '__main__':
         save_dir =  Path(os.path.dirname(cfg['MODEL']['RESUME']))
     os.makedirs(save_dir, exist_ok=True)
     logger = get_logger(save_dir / 'train.log')
-    main(cfg, gpu, save_dir)
+    main(cfg, args.scene, gpu, save_dir)
     cleanup_ddp()

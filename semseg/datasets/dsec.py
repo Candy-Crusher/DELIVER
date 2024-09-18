@@ -12,7 +12,6 @@ import einops
 from torch.utils.data import DataLoader
 from torch.utils.data import DistributedSampler, RandomSampler
 from semseg.augmentations_mm import get_train_augmentation
-
 class DSEC(Dataset):
     """
     num_classes: 19
@@ -44,7 +43,7 @@ class DSEC(Dataset):
     
     def __getitem__(self, index: int) -> Tuple[Tensor, Tensor]:
         rgb = str(self.files[index])
-        event_path = rgb.replace('/leftImg8bit', '/event').replace('.png', '.npy')
+        event_path = rgb.replace('/leftImg8bit', '/event_03').replace('.png', '.npy')
         lbl_path = rgb.replace('/leftImg8bit', '/gtFine')
         lbl_path = lbl_path.split('.')[0]  # 获取文件名的基础部分（去掉扩展名）
         lbl_path = f"{lbl_path}_gtFine_labelTrainIds.png"  # 添加后缀并重新组合
@@ -55,8 +54,8 @@ class DSEC(Dataset):
         sample['img'] = io.read_image(rgb)[:3, ...][:, :440]
         H, W = sample['img'].shape[1:]
         if 'event' in self.modals:
-            data= np.load(event_path, allow_pickle=True).item()
-            sample['event'] = data['representation']['left']['T03'].clone().detach()[:, :440]
+            data= np.load(event_path, allow_pickle=True)
+            sample['event'] = torch.from_numpy(data[:, :440])
         label = io.read_image(lbl_path)[0,...].unsqueeze(0)
         sample['mask'] = label[:, :440]
         if self.transform:
