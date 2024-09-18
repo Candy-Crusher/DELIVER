@@ -47,7 +47,8 @@ class DSEC(Dataset):
         self.n_classes = len(self.CLASSES)
         self.ignore_label = 255
         self.modals = modals
-        self.files = sorted(glob.glob(os.path.join(*[root, 'leftImg8bit', split, '*', '*.png'])))
+        # self.files = sorted(glob.glob(os.path.join(*[root, 'leftImg8bit', split, '*', '*.png'])))
+        self.files = sorted(glob.glob(os.path.join(*[root, 'gtFine', split, '*', '*_gtFine_labelTrainIds11.png'])))
         # --- debug
         # self.files = sorted(glob.glob(os.path.join(*[root, 'img', '*', split, '*', '*.png'])))[:100]
         print(f"Found {len(self.files)} {split} {case} images.")
@@ -56,11 +57,14 @@ class DSEC(Dataset):
         return len(self.files)
     
     def __getitem__(self, index: int) -> Tuple[Tensor, Tensor]:
-        rgb = str(self.files[index])
-        event_path = rgb.replace('/leftImg8bit', '/event_03').replace('.png', '.npy')
-        lbl_path = rgb.replace('/leftImg8bit', '/gtFine')
-        lbl_path = lbl_path.split('.')[0]  # 获取文件名的基础部分（去掉扩展名）
-        lbl_path = f"{lbl_path}_gtFine_labelTrainIds11.png"  # 添加后缀并重新组合
+        # rgb = str(self.files[index])
+        lbl_path = str(self.files[index])
+        # event_path = rgb.replace('/leftImg8bit', '/event_03').replace('.png', '.npy')
+        event_path = lbl_path.replace('/gtFine', '/event_03').replace('_gtFine_labelTrainIds11.png', '.npy')
+        # lbl_path = rgb.replace('/leftImg8bit', '/gtFine')
+        rgb = event_path.replace('/event_03', '/leftImg8bit').replace('.npy', '.png')
+        # lbl_path = lbl_path.split('.')[0]  # 获取文件名的基础部分（去掉扩展名）
+        # lbl_path = f"{lbl_path}_gtFine_labelTrainIds11.png"  # 添加后缀并重新组合
         seq_name = Path(rgb).parts[-2]
         seq_idx = Path(rgb).parts[-1].split('_')[0]
 
