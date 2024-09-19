@@ -23,36 +23,51 @@ from semseg.utils.utils import fix_seeds, setup_cudnn, cleanup_ddp, setup_ddp, g
 # import Image
 from PIL import Image
 
+# semseg_dict = {
+#     "num_classes": 19,
+#     "ignore_label": 255,
+#     "class_names": [
+#         "road", "sidewalk", "building", "wall", "fence",
+#         "pole", "traffic light", "traffic sign", "vegetation", "terrain",
+#         "sky", "person", "rider", "car", "truck", "bus",
+#         "train", "motorcycle", "bicycle"
+#     ],
+#     "color_map": np.array([
+#         [128, 64, 128],      # road
+#         [244, 35, 232],      # sidewalk
+#         [70, 70, 70],        # building
+#         [102, 102, 156],     # wall
+#         [190, 153, 153],     # fence
+#         [153, 153, 153],     # pole
+#         [250, 170, 30],      # traffic light
+#         [220, 220, 0],       # traffic sign
+#         [107, 142, 35],      # vegetation
+#         [152, 251, 152],     # terrain
+#         [70, 130, 180],      # sky
+#         [220, 20, 60],       # person
+#         [255, 0, 0],         # rider
+#         [0, 0, 142],         # car
+#         [0, 0, 70],          # truck
+#         [0, 60, 100],        # bus
+#         [0, 80, 100],        # train
+#         [0, 0, 230],         # motorcycle
+#         [119, 11, 32]        # bicycle
+#     ])
+# }
+
 semseg_dict = {
-    "num_classes": 19,
+    "num_classes": 11,
     "ignore_label": 255,
     "class_names": [
-        "road", "sidewalk", "building", "wall", "fence",
-        "pole", "traffic light", "traffic sign", "vegetation", "terrain",
-        "sky", "person", "rider", "car", "truck", "bus",
-        "train", "motorcycle", "bicycle"
+        "background", "building", "fence", "person", "pole",
+        "road", "sidewalk", "vegetation", "car", "wall",
+        "traffic sign",
     ],
     "color_map": np.array([
-        [128, 64, 128],      # road
-        [244, 35, 232],      # sidewalk
-        [70, 70, 70],        # building
-        [102, 102, 156],     # wall
-        [190, 153, 153],     # fence
-        [153, 153, 153],     # pole
-        [250, 170, 30],      # traffic light
-        [220, 220, 0],       # traffic sign
-        [107, 142, 35],      # vegetation
-        [152, 251, 152],     # terrain
-        [70, 130, 180],      # sky
-        [220, 20, 60],       # person
-        [255, 0, 0],         # rider
-        [0, 0, 142],         # car
-        [0, 0, 70],          # truck
-        [0, 60, 100],        # bus
-        [0, 80, 100],        # train
-        [0, 0, 230],         # motorcycle
-        [119, 11, 32]        # bicycle
-    ])
+        [0, 0, 0], [70, 70, 70], [190, 153, 153], [220, 20, 60], [153, 153, 153], 
+        [128, 64, 128], [244, 35, 232], [107, 142, 35], [0, 0, 142], [102, 102, 156], 
+        [220, 220, 0],
+    ]),
 }
 
 def pad_image(img, target_size):
@@ -178,6 +193,7 @@ def main(cfg, scene):
     
     model_path = Path(eval_cfg['MODEL_PATH'])
     if not model_path.exists(): 
+        print(model_path)
         raise FileNotFoundError
     print(f"Evaluating {model_path}...")
 

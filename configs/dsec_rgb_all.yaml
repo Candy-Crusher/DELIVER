@@ -9,11 +9,11 @@ MODEL:
 
 DATASET:
   NAME          : DSEC                                          # dataset name to be trained with (camvid, cityscapes, ade20k)
-  ROOT          : '/home/xiaoshan/work/adap_v/my_proj/data/DSEC/day'                                   # dataset root path
+  ROOT          : '/home/xiaoshan/work/adap_v/my_proj/data/DSEC/all'                                   # dataset root path
   IGNORE_LABEL  : 255
-  # MODALS        : ['img']
+  MODALS        : ['img']
   # MODALS        : ['img', 'depth']
-  MODALS        : ['img', 'event']
+  # MODALS        : ['img', 'event']
   # MODALS        : ['img', 'lidar']
   # MODALS        : ['img', 'depth', 'event']
   # MODALS        : ['img', 'depth', 'lidar']
