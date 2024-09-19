@@ -48,7 +48,7 @@ EVAL:
   # MODEL_PATH    : 'output/DSEC/cmnext_b2_kitti360_rgb.pth'
   # MODEL_PATH    : 'output/DSEC/cmnext_b2_kitti360_rgbd.pth'
   # MODEL_PATH    : 'output/DSEC/cmnext_b2_deliver_rgbe.pth'
-  MODEL_PATH    : 'output/DSEC/cmnext_b2_kitti360_rgb.pth'
+  # MODEL_PATH    : 'output/DSEC/cmnext_b2_kitti360_rgb.pth'
   # MODEL_PATH    : 'output/DSEC/cmnext_b2_kitti360_rgbl.pth'
   # MODEL_PATH    : 'output/DSEC/cmnext_b2_kitti360_rgbde.pth'
   # MODEL_PATH    : 'output/DSEC/cmnext_b2_kitti360_rgbdl.pth'

@@ -182,7 +182,7 @@ def evaluate_msf(model, dataloader, device, scales, flip):
     return acc, macc, f1, mf1, ious, miou
 
 
-def main(cfg, scene):
+def main(cfg, scene, model_path):
     device = torch.device(cfg['DEVICE'])
 
     eval_cfg = cfg['EVAL']
@@ -191,15 +191,15 @@ def main(cfg, scene):
     # cases = ['motionblur', 'overexposure', 'underexposure', 'lidarjitter', 'eventlowres']
     cases = [None] # all
     
-    model_path = Path(eval_cfg['MODEL_PATH'])
+    model_path = Path(model_path)
     if not model_path.exists(): 
         print(model_path)
         raise FileNotFoundError
     print(f"Evaluating {model_path}...")
 
     exp_time = time.strftime('%Y%m%d_%H%M%S', time.localtime())
-    save_dir  = os.path.join(os.path.dirname(eval_cfg['MODEL_PATH']), '{}_eval_{}'.format(scene, exp_time))
-    eval_path = os.path.join(os.path.dirname(eval_cfg['MODEL_PATH']), '{}_eval_{}.txt'.format(scene, exp_time))
+    save_dir  = os.path.join(os.path.dirname(model_path), '{}_eval_{}'.format(scene, exp_time))
+    eval_path = os.path.join(os.path.dirname(model_path), '{}_eval_{}.txt'.format(scene, exp_time))
 
     for case in cases:
         dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'], 'val', transform, cfg['DATASET']['MODALS'], case)
@@ -225,10 +225,10 @@ def main(cfg, scene):
                 'Acc': acc + [macc]
             }
             print("mIoU : {}".format(miou))
-            print("Results saved in {}".format(eval_cfg['MODEL_PATH']))
+            print("Results saved in {}".format(model_path))
 
         with open(eval_path, 'a+') as f:
-            f.writelines(eval_cfg['MODEL_PATH'])
+            f.writelines(str(model_path))
             f.write("\n============== Eval on {} {} images =================\n".format(case, len(dataset)))
             f.write("\n")
             print(tabulate(table, headers='keys'), file=f)
@@ -239,6 +239,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfg', type=str, default='configs/DELIVER.yaml')
     parser.add_argument('--scene', type=str, default='night')
+    parser.add_argument('--model_path', type=str, default='night')
     args = parser.parse_args()
 
     with open(args.cfg) as f:
@@ -247,4 +248,4 @@ if __name__ == '__main__':
     setup_cudnn()
     # gpu = setup_ddp()
     # main(cfg, gpu)
-    main(cfg, args.scene)
+    main(cfg, args.scene, args.model_path)

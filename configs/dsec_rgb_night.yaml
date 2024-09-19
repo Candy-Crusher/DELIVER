@@ -21,9 +21,9 @@ DATASET:
 
 TRAIN:
   IMAGE_SIZE    : [440, 640]    # training image size in (h, w)
-  BATCH_SIZE    : 2               # batch size used to train
+  BATCH_SIZE    : 8               # batch size used to train
   EPOCHS        : 200             # number of epochs to train
-  EVAL_START    : 100             # evaluation interval start
+  EVAL_START    : 50             # evaluation interval start
   EVAL_INTERVAL : 1               # evaluation interval during training
   AMP           : false           # use AMP in training
   DDP           : true            # use DDP training
@@ -47,7 +47,7 @@ SCHEDULER:
 EVAL:
   # MODEL_PATH    : 'output/DSEC/cmnext_b2_kitti360_rgb.pth'
   # MODEL_PATH    : 'output/DSEC/cmnext_b2_kitti360_rgbd.pth'
-  MODEL_PATH    : 'output/DSEC/cmnext_b2_kitti360_rgb.pth'
+  # MODEL_PATH    : 'output/DSEC/cmnext_b2_kitti360_rgb.pth'
   # MODEL_PATH    : 'output/DSEC/cmnext_b2_deliver_rgbe.pth'
   # MODEL_PATH    : 'output/DSEC/cmnext_b2_kitti360_rgbl.pth'
   # MODEL_PATH    : 'output/DSEC/cmnext_b2_kitti360_rgbde.pth'
