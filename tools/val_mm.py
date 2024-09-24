@@ -23,53 +23,6 @@ from semseg.utils.utils import fix_seeds, setup_cudnn, cleanup_ddp, setup_ddp, g
 # import Image
 from PIL import Image
 
-# semseg_dict = {
-#     "num_classes": 19,
-#     "ignore_label": 255,
-#     "class_names": [
-#         "road", "sidewalk", "building", "wall", "fence",
-#         "pole", "traffic light", "traffic sign", "vegetation", "terrain",
-#         "sky", "person", "rider", "car", "truck", "bus",
-#         "train", "motorcycle", "bicycle"
-#     ],
-#     "color_map": np.array([
-#         [128, 64, 128],      # road
-#         [244, 35, 232],      # sidewalk
-#         [70, 70, 70],        # building
-#         [102, 102, 156],     # wall
-#         [190, 153, 153],     # fence
-#         [153, 153, 153],     # pole
-#         [250, 170, 30],      # traffic light
-#         [220, 220, 0],       # traffic sign
-#         [107, 142, 35],      # vegetation
-#         [152, 251, 152],     # terrain
-#         [70, 130, 180],      # sky
-#         [220, 20, 60],       # person
-#         [255, 0, 0],         # rider
-#         [0, 0, 142],         # car
-#         [0, 0, 70],          # truck
-#         [0, 60, 100],        # bus
-#         [0, 80, 100],        # train
-#         [0, 0, 230],         # motorcycle
-#         [119, 11, 32]        # bicycle
-#     ])
-# }
-
-semseg_dict = {
-    "num_classes": 11,
-    "ignore_label": 255,
-    "class_names": [
-        "background", "building", "fence", "person", "pole",
-        "road", "sidewalk", "vegetation", "car", "wall",
-        "traffic sign",
-    ],
-    "color_map": np.array([
-        [0, 0, 0], [70, 70, 70], [190, 153, 153], [220, 20, 60], [153, 153, 153], 
-        [128, 64, 128], [244, 35, 232], [107, 142, 35], [0, 0, 142], [102, 102, 156], 
-        [220, 220, 0],
-    ]),
-}
-
 def pad_image(img, target_size):
     rows_to_pad = max(target_size[0] - img.shape[2], 0)
     cols_to_pad = max(target_size[1] - img.shape[3], 0)
@@ -111,7 +64,7 @@ def sliding_predict(model, image, num_classes, flip=True):
     return total_predictions.unsqueeze(0)
 
 @torch.no_grad()
-def evaluate(model, dataloader, device, save_dir=None):
+def evaluate(model, dataloader, device, save_dir=None, palette=None):
     print('Evaluating...')
     model.eval()
     n_classes = dataloader.dataset.n_classes
@@ -133,7 +86,7 @@ def evaluate(model, dataloader, device, save_dir=None):
             for i, idx in enumerate(seq_index):
                 # 把shape为(19, H, W)的预测结果转换为(H, W)的numpy数组
                 pred_argmax = preds[i].argmax(dim=0)
-                rgb_image = semseg_dict['color_map'][pred_argmax.cpu().numpy().astype(np.uint8)]
+                rgb_image = palette[pred_argmax.cpu().numpy().astype(np.uint8)]
                 # 将numpy数组转换为PIL图像
                 rgb_image = Image.fromarray(rgb_image.astype(np.uint8))
                 rgb_image.save(save_path / f'{idx}_color.png')
@@ -182,7 +135,7 @@ def evaluate_msf(model, dataloader, device, scales, flip):
     return acc, macc, f1, mf1, ious, miou
 
 
-def main(cfg, scene, model_path):
+def main(cfg, scene, classes, model_path):
     device = torch.device(cfg['DEVICE'])
 
     eval_cfg = cfg['EVAL']
@@ -202,7 +155,7 @@ def main(cfg, scene, model_path):
     eval_path = os.path.join(os.path.dirname(model_path), '{}_eval_{}.txt'.format(scene, exp_time))
 
     for case in cases:
-        dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'], 'val', transform, cfg['DATASET']['MODALS'], case)
+        dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'], 'val', classes, transform, cfg['DATASET']['MODALS'], case)
         # --- test set
         # dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'], 'test', transform, cfg['DATASET']['MODALS'], case)
 
@@ -216,10 +169,10 @@ def main(cfg, scene, model_path):
             if eval_cfg['MSF']['ENABLE']:
                 acc, macc, f1, mf1, ious, miou = evaluate_msf(model, dataloader, device, eval_cfg['MSF']['SCALES'], eval_cfg['MSF']['FLIP'])
             else:
-                acc, macc, f1, mf1, ious, miou = evaluate(model, dataloader, device, save_dir)
+                acc, macc, f1, mf1, ious, miou = evaluate(model, dataloader, device, save_dir, palette=np.array(dataset.SEGMENTATION_CONFIGS[classes]["PALETTE"]))
 
             table = {
-                'Class': list(dataset.CLASSES) + ['Mean'],
+                'Class': list(dataset.SEGMENTATION_CONFIGS[classes]["CLASSES"]) + ['Mean'],
                 'IoU': ious + [miou],
                 'F1': f1 + [mf1],
                 'Acc': acc + [macc]
@@ -240,6 +193,7 @@ if __name__ == '__main__':
     parser.add_argument('--cfg', type=str, default='configs/DELIVER.yaml')
     parser.add_argument('--scene', type=str, default='night')
     parser.add_argument('--model_path', type=str, default='night')
+    parser.add_argument('--classes', type=int, default=11)
     args = parser.parse_args()
 
     with open(args.cfg) as f:
@@ -248,4 +202,4 @@ if __name__ == '__main__':
     setup_cudnn()
     # gpu = setup_ddp()
     # main(cfg, gpu)
-    main(cfg, args.scene, args.model_path)
+    main(cfg, args.scene, args.classes, args.model_path)

@@ -1,9 +1,12 @@
 export PYTHONPATH="/home/xiaoshan/work/adap_v/DELIVER"
-export CUDA_VISIBLE_DEVICES=0,2
+export CUDA_VISIBLE_DEVICES=1,3
+train_dataset='day'
+input_type='rgbe'
 NCCL_P2P_DISABLE=1 torchrun --standalone --nproc_per_node=2 \
   tools/train_mm.py \
-  --cfg configs/dsec_rgb_night.yaml \
-  --scene dsec_rgb_night \
+  --cfg configs/dsec_${input_type}_${train_dataset}.yaml \
+  --scene ${train_dataset} \
+  --classes 11
   # --cfg configs/dsec_rgbe.yaml
   # --cfg configs/deliver_rgbdel.yaml
 

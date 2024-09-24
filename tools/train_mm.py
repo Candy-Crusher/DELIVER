@@ -25,55 +25,7 @@ import numpy as np
 # import Image
 from PIL import Image
 
-# semseg_dict = {
-#     "num_classes": 19,
-#     "ignore_label": 255,
-#     "class_names": [
-#         "road", "sidewalk", "building", "wall", "fence",
-#         "pole", "traffic light", "traffic sign", "vegetation", "terrain",
-#         "sky", "person", "rider", "car", "truck", "bus",
-#         "train", "motorcycle", "bicycle"
-#     ],
-#     "color_map": np.array([
-#         [128, 64, 128],      # road
-#         [244, 35, 232],      # sidewalk
-#         [70, 70, 70],        # building
-#         [102, 102, 156],     # wall
-#         [190, 153, 153],     # fence
-#         [153, 153, 153],     # pole
-#         [250, 170, 30],      # traffic light
-#         [220, 220, 0],       # traffic sign
-#         [107, 142, 35],      # vegetation
-#         [152, 251, 152],     # terrain
-#         [70, 130, 180],      # sky
-#         [220, 20, 60],       # person
-#         [255, 0, 0],         # rider
-#         [0, 0, 142],         # car
-#         [0, 0, 70],          # truck
-#         [0, 60, 100],        # bus
-#         [0, 80, 100],        # train
-#         [0, 0, 230],         # motorcycle
-#         [119, 11, 32]        # bicycle
-#     ])
-# }
-
-semseg_dict = {
-    "num_classes": 11,
-    "ignore_label": 255,
-    "class_names": [
-        "background", "building", "fence", "person", "pole",
-        "road", "sidewalk", "vegetation", "car", "wall",
-        "traffic sign",
-    ],
-    "color_map": np.array([
-        [0, 0, 0], [70, 70, 70], [190, 153, 153], [220, 20, 60], [153, 153, 153], 
-        [128, 64, 128], [244, 35, 232], [107, 142, 35], [0, 0, 142], [102, 102, 156], 
-        [220, 220, 0],
-    ]),
-}
-
-
-def main(cfg, scene, gpu, save_dir):
+def main(cfg, scene, classes, gpu, save_dir):
     start = time.time()
     best_mIoU = 0.0
     best_epoch = 0
@@ -89,9 +41,9 @@ def main(cfg, scene, gpu, save_dir):
     traintransform = get_train_augmentation(train_cfg['IMAGE_SIZE'], seg_fill=dataset_cfg['IGNORE_LABEL'])
     valtransform = get_val_augmentation(eval_cfg['IMAGE_SIZE'])
 
-    trainset = eval(dataset_cfg['NAME'])(dataset_cfg['ROOT'], 'train', traintransform, dataset_cfg['MODALS'])
-    valset = eval(dataset_cfg['NAME'])(dataset_cfg['ROOT'], 'val', valtransform, dataset_cfg['MODALS'])
-    class_names = trainset.CLASSES
+    trainset = eval(dataset_cfg['NAME'])(dataset_cfg['ROOT'], 'train', classes, traintransform, dataset_cfg['MODALS'])
+    valset = eval(dataset_cfg['NAME'])(dataset_cfg['ROOT'], 'val', classes, valtransform, dataset_cfg['MODALS'])
+    class_names = trainset.SEGMENTATION_CONFIGS[classes]["CLASSES"]
 
     model = eval(model_cfg['NAME'])(model_cfg['BACKBONE'], trainset.n_classes, dataset_cfg['MODALS'])
     resume_checkpoint = None
@@ -146,7 +98,6 @@ def main(cfg, scene, gpu, save_dir):
         lr = scheduler.get_lr()
         lr = sum(lr) / len(lr)
         pbar = tqdm(enumerate(trainloader), total=iters_per_epoch, desc=f"Epoch: [{epoch+1}/{epochs}] Iter: [{0}/{iters_per_epoch}] LR: {lr:.8f} Loss: {train_loss:.8f}")
-
         for iter, (seq_names, seq_index, sample, lbl) in pbar:
             optimizer.zero_grad(set_to_none=True)
             sample = [x.to(device) for x in sample]
@@ -169,7 +120,6 @@ def main(cfg, scene, gpu, save_dir):
             train_loss += loss.item()
 
             pbar.set_description(f"Epoch: [{epoch+1}/{epochs}] Iter: [{iter+1}/{iters_per_epoch}] LR: {lr:.8f} Loss: {train_loss / (iter+1):.8f}")
-        
         train_loss /= iter+1
         if (train_cfg['DDP'] and torch.distributed.get_rank() == 0) or (not train_cfg['DDP']):
             writer.add_scalar('train/loss', train_loss, epoch)
@@ -181,14 +131,14 @@ def main(cfg, scene, gpu, save_dir):
                 writer.add_scalar('val/mIoU', miou, epoch)
 
                 if miou > best_mIoU:
-                    prev_best_ckp = save_dir / f"{model_cfg['NAME']}_{model_cfg['BACKBONE']}_{dataset_cfg['NAME']}_epoch{best_epoch}_{best_mIoU}_checkpoint.pth"
-                    prev_best = save_dir / f"{model_cfg['NAME']}_{model_cfg['BACKBONE']}_{dataset_cfg['NAME']}_epoch{best_epoch}_{best_mIoU}.pth"
+                    prev_best_ckp = save_dir / f"model_{scene}_{classes}_{model_cfg['NAME']}_{model_cfg['BACKBONE']}_{dataset_cfg['NAME']}_epoch{best_epoch}_{best_mIoU}_checkpoint.pth"
+                    prev_best = save_dir / f"model_{scene}_{classes}_{model_cfg['NAME']}_{model_cfg['BACKBONE']}_{dataset_cfg['NAME']}_epoch{best_epoch}_{best_mIoU}.pth"
                     if os.path.isfile(prev_best): os.remove(prev_best)
                     if os.path.isfile(prev_best_ckp): os.remove(prev_best_ckp)
                     best_mIoU = miou
                     best_epoch = epoch+1
-                    cur_best_ckp = save_dir / f"{model_cfg['NAME']}_{model_cfg['BACKBONE']}_{dataset_cfg['NAME']}_epoch{best_epoch}_{best_mIoU}_checkpoint.pth"
-                    cur_best = save_dir / f"{model_cfg['NAME']}_{model_cfg['BACKBONE']}_{dataset_cfg['NAME']}_epoch{best_epoch}_{best_mIoU}.pth"
+                    cur_best_ckp = save_dir / f"model_{scene}_{classes}_{model_cfg['NAME']}_{model_cfg['BACKBONE']}_{dataset_cfg['NAME']}_epoch{best_epoch}_{best_mIoU}_checkpoint.pth"
+                    cur_best = save_dir / f"model_{scene}_{classes}_{model_cfg['NAME']}_{model_cfg['BACKBONE']}_{dataset_cfg['NAME']}_epoch{best_epoch}_{best_mIoU}.pth"
                     torch.save(model.module.state_dict() if train_cfg['DDP'] else model.state_dict(), cur_best)
                     # --- 
                     torch.save({'epoch': best_epoch,
@@ -217,6 +167,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfg', type=str, default='configs/deliver_rgbdel.yaml', help='Configuration file to use')
     parser.add_argument('--scene', type=str, default='night')
+    parser.add_argument('--classes', type=int, default=11)
     args = parser.parse_args()
 
     with open(args.cfg) as f:
@@ -233,5 +184,5 @@ if __name__ == '__main__':
         save_dir =  Path(os.path.dirname(cfg['MODEL']['RESUME']))
     os.makedirs(save_dir, exist_ok=True)
     logger = get_logger(save_dir / 'train.log')
-    main(cfg, args.scene, gpu, save_dir)
+    main(cfg, args.scene, args.classes, gpu, save_dir)
     cleanup_ddp()
