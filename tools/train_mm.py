@@ -167,6 +167,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfg', type=str, default='configs/deliver_rgbdel.yaml', help='Configuration file to use')
     parser.add_argument('--scene', type=str, default='night')
+    parser.add_argument('--input_type', type=str, default='rgbe')
     parser.add_argument('--classes', type=int, default=11)
     args = parser.parse_args()
 
@@ -183,6 +184,7 @@ if __name__ == '__main__':
     if os.path.isfile(cfg['MODEL']['RESUME']):
         save_dir =  Path(os.path.dirname(cfg['MODEL']['RESUME']))
     os.makedirs(save_dir, exist_ok=True)
-    logger = get_logger(save_dir / 'train.log')
+    time_ = time.strftime('%Y%m%d_%H%M%S', time.localtime())
+    logger = get_logger(save_dir / f'{args.input_type}_{args.scene}_{args.classes}_{time_}_train.log')
     main(cfg, args.scene, args.classes, gpu, save_dir)
     cleanup_ddp()
