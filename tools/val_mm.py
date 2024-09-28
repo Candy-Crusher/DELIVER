@@ -80,16 +80,18 @@ def evaluate(model, dataloader, device, save_dir=None, palette=None):
 
         # 保存图像
         if save_dir is not None:
-            save_path = Path(save_dir) / seq_names[0]
-            if not os.path.exists(save_path):
-                os.makedirs(save_path)
             for i, idx in enumerate(seq_index):
                 # 把shape为(19, H, W)的预测结果转换为(H, W)的numpy数组
-                pred_argmax = preds[i].argmax(dim=0)
-                rgb_image = palette[pred_argmax.cpu().numpy().astype(np.uint8)]
+                save_path = Path(save_dir) / seq_names[i]
+                if not os.path.exists(save_path):
+                    os.makedirs(save_path)
+                pred_argmax = preds[i].argmax(dim=0).cpu().numpy().astype(np.uint8)
+                rgb_image = palette[pred_argmax]
                 # 将numpy数组转换为PIL图像
+                pred_argmax = Image.fromarray(pred_argmax)
                 rgb_image = Image.fromarray(rgb_image.astype(np.uint8))
-                rgb_image.save(save_path / f'{idx}_color.png')
+                rgb_image.save(save_path / idx)
+                pred_argmax.save(save_path / idx.replace('.png', '_labelTrainIds11.png'))
         metrics.update(preds, labels)
     
     ious, miou = metrics.compute_iou()

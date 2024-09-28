@@ -1,11 +1,17 @@
 export PYTHONPATH="/home/xiaoshan/work/adap_v/DELIVER"
-export CUDA_VISIBLE_DEVICES=0,2
+export CUDA_VISIBLE_DEVICES=3
 eval_dataset='night'
-input_type='rgb'
+input_type='rgbe'
 python tools/val_mm.py \
     --cfg configs/dsec_${input_type}_${eval_dataset}.yaml \
     --scene dsec_${input_type}_${eval_dataset} \
-    --classes 12 \
-    --model_path output/DSEC_CMNeXt-B2_i/model_night_12_CMNeXt_CMNeXt-B2_DSEC_epoch149_63.83.pth \
+    --classes 11 \
+    --model_path output/DSEC_CMNeXt-B2_ie/model_all_11_CMNeXt_CMNeXt-B2_DSEC_epoch204_73.29.pth \
+    # --model_path output/DSEC_CMNeXt-B2_i/model_all_11_CMNeXt_CMNeXt-B2_DSEC_epoch196_73.44.pth \
+    # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch356_73.55.pth \
+    # --model_path output/DSEC_CMNeXt-B2_ie/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch360_73.32.pth \
+    # --model_path output/DSEC_CMNeXt-B2_ie/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch245_72.59.pth \
+    # --model_path output/DSEC_CMNeXt-B2_i/model_night_11_CMNeXt_CMNeXt-B2_DSEC_epoch340_68.88.pth \
+    # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch327_72.71.pth \
     # --cfg configs/dsec_rgbe.yaml
     # --cfg configs/deliver_rgbdel.yaml

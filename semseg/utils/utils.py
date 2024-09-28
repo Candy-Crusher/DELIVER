@@ -146,6 +146,7 @@ def get_logger(log_file=None):
 
 def cal_flops(model, modals, logger):
     x = [torch.zeros(1, 3, 512, 512) for _ in range(len(modals))]
+    x[1] = torch.zeros(1, 3, 512, 512)
     # x = [torch.zeros(2, 3, 512, 512) for _ in range(len(modals))] #--- PGSNet
     # x = [torch.zeros(1, 3, 512, 512) for _ in range(len(modals))] # --- for HRFuser
     if torch.distributed.is_initialized():

@@ -230,7 +230,67 @@ class RandomCrop:
             mask = mask[:, y1:y2, x1:x2]
         return img, mask
 
+class RandomCrop_cat_max_ratio:
+    """Random crop the image & seg.
 
+    Args:
+        crop_size (tuple): Expected size after cropping, (h, w).
+        cat_max_ratio (float): The maximum ratio that single category could occupy.
+        ignore_index (int): The label index to ignore.
+    """
+
+    def __init__(self, crop_size: Tuple[int, int], cat_max_ratio: float = 1.0, ignore_index: int = 255) -> None:
+        assert crop_size[0] > 0 and crop_size[1] > 0, "Crop size must be positive."
+        self.crop_size = crop_size
+        self.cat_max_ratio = cat_max_ratio
+        self.ignore_index = ignore_index
+
+    def get_crop_bbox(self, img: Tensor) -> Tuple[int, int, int, int]:
+        """Randomly get a crop bounding box."""
+        margin_h = max(img.shape[1] - self.crop_size[0], 0)
+        margin_w = max(img.shape[2] - self.crop_size[1], 0)
+        offset_h = random.randint(0, margin_h + 1)
+        offset_w = random.randint(0, margin_w + 1)
+        crop_y1, crop_y2 = offset_h, offset_h + self.crop_size[0]
+        crop_x1, crop_x2 = offset_w, offset_w + self.crop_size[1]
+
+        return crop_y1, crop_y2, crop_x1, crop_x2
+
+    def crop(self, img: Tensor, crop_bbox: Tuple[int, int, int, int]) -> Tensor:
+        """Crop from `img`."""
+        crop_y1, crop_y2, crop_x1, crop_x2 = crop_bbox
+        img = img[:, crop_y1:crop_y2, crop_x1:crop_x2]
+        return img
+
+    def __call__(self, sample:list) -> list:
+    # def __call__(self, img: Tensor, mask: Tensor) -> Tuple[Tensor, Tensor]:
+        """Call function to randomly crop images and semantic segmentation maps.
+
+        Args:
+            img (Tensor): Image tensor.
+            mask (Tensor): Mask tensor.
+
+        Returns:
+            Tuple[Tensor, Tensor]: Randomly cropped image and mask.
+        """
+        img, mask = sample['img'], sample['mask']
+        crop_bbox = self.get_crop_bbox(img)
+        if self.cat_max_ratio < 1.0:
+            # Repeat 10 times
+            for _ in range(10):
+                seg_temp = self.crop(mask, crop_bbox)
+                labels, cnt = torch.unique(seg_temp, return_counts=True)
+                cnt = cnt[labels != self.ignore_index]
+                if len(cnt) > 1 and torch.max(cnt).item() / torch.sum(cnt).item() < self.cat_max_ratio:
+                    break
+                crop_bbox = self.get_crop_bbox(img)
+
+        # Crop the sample
+        for k, v in sample.items():
+            sample[k] = self.crop(v, crop_bbox)
+
+        return sample
+    
 class Pad:
     def __init__(self, size: Union[List[int], Tuple[int], int], seg_fill: int = 0) -> None:
         """Pad the given image on all sides with the given "pad" value.
@@ -241,9 +301,16 @@ class Pad:
         self.size = size
         self.seg_fill = seg_fill
 
-    def __call__(self, img: Tensor, mask: Tensor) -> Tuple[Tensor, Tensor]:
+    def __call__(self, sample:list) -> list:
+    # def __call__(self, img: Tensor, mask: Tensor) -> Tuple[Tensor, Tensor]:
+        img = sample['img']
         padding = (0, 0, self.size[1]-img.shape[2], self.size[0]-img.shape[1])
-        return TF.pad(img, padding), TF.pad(mask, padding, self.seg_fill)
+        for k, v in sample.items():
+            if k == 'mask':                
+                sample[k] = TF.pad(v, padding, fill=self.seg_fill)
+            else:
+                sample[k] = TF.pad(v, padding, fill=0)
+        return sample
 
 
 class ResizePad:
@@ -276,7 +343,7 @@ class ResizePad:
 
 
 class Resize:
-    def __init__(self, size: Union[int, Tuple[int], List[int]]) -> None:
+    def __init__(self, size: Union[int, Tuple[int], List[int]], scale: Optional[Tuple[float, float]] = None) -> None:
         """Resize the input image to the given size.
         Args:
             size: Desired output size. 
@@ -284,32 +351,53 @@ class Resize:
                 If size is an int, the smaller edge of the image will be matched to this number maintaining the aspect ratio.
         """
         self.size = size
+        self.scale = scale
 
     def __call__(self, sample:list) -> list:
-        H, W = sample['img'].shape[1:]
+        if self.scale is not None:
+            # img, mask = sample['img'], sample['mask']
+            H, W = sample['img'].shape[1:]
+            tH, tW = self.size
 
-        # scale the image 
-        scale_factor = self.size[0] / min(H, W)
-        nH, nW = round(H*scale_factor), round(W*scale_factor)
-        for k, v in sample.items():
-            if k == 'mask':                
-                sample[k] = TF.resize(v, (nH, nW), TF.InterpolationMode.NEAREST)
-            else:
-                sample[k] = TF.resize(v, (nH, nW), TF.InterpolationMode.BILINEAR)
-        # img = TF.resize(img, (nH, nW), TF.InterpolationMode.BILINEAR)
-        # mask = TF.resize(mask, (nH, nW), TF.InterpolationMode.NEAREST)
+            # get the scale
+            ratio = random.random() * (self.scale[1] - self.scale[0]) + self.scale[0]
+            # ratio = random.uniform(min(self.scale), max(self.scale))
+            scale = int(tH*ratio), int(tW*4*ratio)
+            # scale the image 
+            scale_factor = min(max(scale)/max(H, W), min(scale)/min(H, W))
+            nH, nW = int(H * scale_factor + 0.5), int(W * scale_factor + 0.5)
+            # nH, nW = int(math.ceil(nH / 32)) * 32, int(math.ceil(nW / 32)) * 32
+            for k, v in sample.items():
+                if k == 'mask':                
+                    sample[k] = TF.resize(v, (nH, nW), TF.InterpolationMode.NEAREST)
+                else:
+                    sample[k] = TF.resize(v, (nH, nW), TF.InterpolationMode.BILINEAR)
+            return sample
+        else:
+            H, W = sample['img'].shape[1:]
 
-        # make the image divisible by stride
-        alignH, alignW = int(math.ceil(nH / 32)) * 32, int(math.ceil(nW / 32)) * 32
-        
-        for k, v in sample.items():
-            if k == 'mask':                
-                sample[k] = TF.resize(v, (alignH, alignW), TF.InterpolationMode.NEAREST)
-            else:
-                sample[k] = TF.resize(v, (alignH, alignW), TF.InterpolationMode.BILINEAR)
-        # img = TF.resize(img, (alignH, alignW), TF.InterpolationMode.BILINEAR)
-        # mask = TF.resize(mask, (alignH, alignW), TF.InterpolationMode.NEAREST)
-        return sample
+            # scale the image 
+            scale_factor = self.size[0] / min(H, W)
+            nH, nW = round(H*scale_factor), round(W*scale_factor)
+            for k, v in sample.items():
+                if k == 'mask':                
+                    sample[k] = TF.resize(v, (nH, nW), TF.InterpolationMode.NEAREST)
+                else:
+                    sample[k] = TF.resize(v, (nH, nW), TF.InterpolationMode.BILINEAR)
+            # img = TF.resize(img, (nH, nW), TF.InterpolationMode.BILINEAR)
+            # mask = TF.resize(mask, (nH, nW), TF.InterpolationMode.NEAREST)
+
+            # make the image divisible by stride
+            alignH, alignW = int(math.ceil(nH / 32)) * 32, int(math.ceil(nW / 32)) * 32
+            
+            for k, v in sample.items():
+                if k == 'mask':                
+                    sample[k] = TF.resize(v, (alignH, alignW), TF.InterpolationMode.NEAREST)
+                else:
+                    sample[k] = TF.resize(v, (alignH, alignW), TF.InterpolationMode.BILINEAR)
+            # img = TF.resize(img, (alignH, alignW), TF.InterpolationMode.BILINEAR)
+            # mask = TF.resize(mask, (alignH, alignW), TF.InterpolationMode.NEAREST)
+            return sample
 
 
 class RandomResizedCrop:
@@ -362,18 +450,27 @@ class RandomResizedCrop:
 
 
 
+# def get_train_augmentation(size: Union[int, Tuple[int], List[int]], seg_fill: int = 0):
+#     return Compose([
+#         # RandomColorJitter(p=0.2), # 
+#         RandomHorizontalFlip(p=0.5), #
+#         # RandomGaussianBlur((3, 3), p=0.2), #
+#         RandomResizedCrop(size, scale=(0.5, 2.0), seg_fill=seg_fill), #
+#         Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
+#     ])
+
 def get_train_augmentation(size: Union[int, Tuple[int], List[int]], seg_fill: int = 0):
     return Compose([
-        # RandomColorJitter(p=0.2), # 
+        Resize(size, scale=(0.5, 2.0)),
+        RandomCrop_cat_max_ratio(size, cat_max_ratio=0.75),
         RandomHorizontalFlip(p=0.5), #
-        # RandomGaussianBlur((3, 3), p=0.2), #
-        RandomResizedCrop(size, scale=(0.5, 2.0), seg_fill=seg_fill), #
-        Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
+        Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+        Pad(size, seg_fill=seg_fill)
     ])
 
 def get_val_augmentation(size: Union[int, Tuple[int], List[int]]):
     return Compose([
-        Resize(size),
+        # Resize(size),
         Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
     ])
 

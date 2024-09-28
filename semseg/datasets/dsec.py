@@ -94,6 +94,9 @@ class DSEC(Dataset):
         if 'event' in self.modals:
             data= np.load(event_path, allow_pickle=True)
             sample['event'] = torch.from_numpy(data[:, :440])
+            # 20变成sample['event'][:7].mean(0) sample['event'][7:13].mean(0) sample['event'][13:].mean(0) 三通道
+            # sample['event'] = torch.cat([sample['event'][:7].mean(0).unsqueeze(0), sample['event'][7:13].mean(0).unsqueeze(0), sample['event'][13:].mean(0).unsqueeze(0)], dim=0)
+
         label = io.read_image(lbl_path)[0,...].unsqueeze(0)
         sample['mask'] = label[:, :440]
         if self.transform:
