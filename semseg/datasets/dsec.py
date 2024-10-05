@@ -12,6 +12,23 @@ import einops
 from torch.utils.data import DataLoader
 from torch.utils.data import DistributedSampler, RandomSampler
 from semseg.augmentations_mm import get_train_augmentation
+import re
+def get_cur_name_from_next(filepath):
+    # 正则表达式匹配文件名中的编号部分
+    filename = os.path.basename(filepath)
+    pattern = re.compile(r'(\d+)_gtFine_labelTrainIds11\.png')
+
+    match = pattern.match(filename)
+    if match:
+        # 提取编号部分
+        number = match.group(1)
+        # 构建新的文件名
+        new_filename = f'{int(number)-1:06d}_gtFine_labelTrainIds11.png'
+        # 构建完整的路径名
+        new_filepath = filepath.replace(f'{number}_gtFine_labelTrainIds11.png', new_filename)
+        return new_filepath
+    return None
+
 class DSEC(Dataset):
     # 定义类别和调色板的字典
     SEGMENTATION_CONFIGS = {
@@ -64,7 +81,7 @@ class DSEC(Dataset):
         self.ignore_label = 255
         self.modals = modals
         # self.files = sorted(glob.glob(os.path.join(*[root, 'leftImg8bit', split, '*', '*.png'])))
-        self.files = sorted(glob.glob(os.path.join(*[root, 'gtFine', split, '*', '*_gtFine_labelTrainIds11.png'])))
+        self.files = sorted(glob.glob(os.path.join(*[root, 'gtFine_next', split, '*', '*_gtFine_labelTrainIds11.png'])))
         # --- debug
         # self.files = sorted(glob.glob(os.path.join(*[root, 'img', '*', split, '*', '*.png'])))[:100]
         print(f"Found {len(self.files)} {split} {case} images.")
@@ -75,10 +92,10 @@ class DSEC(Dataset):
     def __getitem__(self, index: int) -> Tuple[Tensor, Tensor]:
         # rgb = str(self.files[index])
         lbl_path = str(self.files[index])
-        # event_path = rgb.replace('/leftImg8bit', '/event_03').replace('.png', '.npy')
-        event_path = lbl_path.replace('/gtFine', '/event_03').replace('_gtFine_labelTrainIds11.png', '.npy')
+        # event_path = rgb.replace('/leftImg8bit', '/event_20').replace('.png', '.npy')
+        event_path = get_cur_name_from_next(lbl_path).replace('/gtFine_next', '/startF1_img_event_50ms/event_20').replace('_gtFine_labelTrainIds11.png', '.npy')
         # lbl_path = rgb.replace('/leftImg8bit', '/gtFine')
-        rgb = event_path.replace('/event_03', '/leftImg8bit').replace('.npy', '.png')
+        rgb = event_path.replace('/startF1_img_event_50ms/event_20', '/leftImg8bit').replace('.npy', '.png')
         if self.n_classes == 12:
             lbl_path = lbl_path.replace('_gtFine_labelTrainIds11.png', '_gtFine_labelTrainIds12.png')
         elif self.n_classes == 19:
@@ -95,7 +112,7 @@ class DSEC(Dataset):
             data= np.load(event_path, allow_pickle=True)
             sample['event'] = torch.from_numpy(data[:, :440])
             # 20变成sample['event'][:7].mean(0) sample['event'][7:13].mean(0) sample['event'][13:].mean(0) 三通道
-            # sample['event'] = torch.cat([sample['event'][:7].mean(0).unsqueeze(0), sample['event'][7:13].mean(0).unsqueeze(0), sample['event'][13:].mean(0).unsqueeze(0)], dim=0)
+            sample['event'] = torch.cat([sample['event'][:7].mean(0).unsqueeze(0), sample['event'][7:13].mean(0).unsqueeze(0), sample['event'][13:].mean(0).unsqueeze(0)], dim=0)
 
         label = io.read_image(lbl_path)[0,...].unsqueeze(0)
         sample['mask'] = label[:, :440]

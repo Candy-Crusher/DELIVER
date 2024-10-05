@@ -93,7 +93,8 @@ def evaluate(model, dataloader, device, save_dir=None, palette=None):
                 rgb_image.save(save_path / idx)
                 pred_argmax.save(save_path / idx.replace('.png', '_labelTrainIds11.png'))
         metrics.update(preds, labels)
-    
+    print('Computing metrics...')
+    print(metrics.hist)
     ious, miou = metrics.compute_iou()
     acc, macc = metrics.compute_pixel_acc()
     f1, mf1 = metrics.compute_f1()

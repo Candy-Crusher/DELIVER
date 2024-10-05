@@ -1,6 +1,6 @@
 export PYTHONPATH="/home/xiaoshan/work/adap_v/DELIVER"
 export CUDA_VISIBLE_DEVICES=3
-eval_dataset='night'
+eval_dataset='all'
 input_type='rgbe'
 python tools/val_mm.py \
     --cfg configs/dsec_${input_type}_${eval_dataset}.yaml \
