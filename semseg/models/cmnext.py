@@ -1,10 +1,15 @@
 import torch
 from torch import Tensor
+import torch.nn as nn
 from torch.nn import functional as F
 from semseg.models.base import BaseModel
 from semseg.models.heads import SegFormerHead
 from semseg.models.heads import LightHamHead
 from semseg.models.heads import UPerHead
+from semseg.models.modules.flow_network import unet
+from semseg.models.modules.flow_network.FRMA.model import flow_network
+from semseg.models.modules.flow_network.FRMA.config import Config
+from semseg.models.modules.softsplat.frame_synthesis import *
 from fvcore.nn import flop_count_table, FlopCountAnalysis
 
 
@@ -12,13 +17,45 @@ class CMNeXt(BaseModel):
     def __init__(self, backbone: str = 'CMNeXt-B0', num_classes: int = 25, modals: list = ['img', 'depth', 'event', 'lidar']) -> None:
         super().__init__(backbone, num_classes, modals)
         self.decode_head = SegFormerHead(self.backbone.channels, 256 if 'B0' in backbone or 'B1' in backbone else 512, num_classes)
+        # self.flow_net = unet.UNet(5, 2, False)
+        # self.softsplat_net = Synthesis()
+        feature_dims = [64, 128, 320, 512]
+        self.flow_nets = nn.ModuleList(
+            flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=feature_dims[i])
+            for i in range(4)
+        )
         self.apply(self._init_weights)
 
-    def forward(self, x: list) -> list:
-        y = self.backbone(x)
-        y = self.decode_head(y)
+    def forward(self, x: list, event_voxel: Tensor=None, rgb_next: Tensor=None) -> list:
+        ## backbone
+        feature = self.backbone(x)
+        feature_next = self.backbone([rgb_next])
+
+        feature_loss = 0
+        # # flownet
+        # # timelens unet + softsplat
+        # # flow = self.flow_net(event_voxel)
+        # B, C, H ,W = x[0].shape
+        # flow = torch.zeros(B, 2, H, W).to(x[0].device)
+        # feature = self.softsplat_net(x[0], feature, flow)
+        # # end
+
+        ## FRAM
+        # event_voxel B T H W
+        # T = 20
+        # 变成[[0,1,2,3], [4,5,6,7], [8,9,10,11], [12,13,14,15], [16,17,18,19]]这样 B C=4 T=5 H W的shape
+        event_voxel = event_voxel.unfold(1, 4, 4).permute(0, 4, 1, 2, 3)
+        for i, fea in enumerate(feature):
+            feature[i] = self.flow_nets[i](event_voxel, fea, x[0])
+
+        ## 计算监督损失
+        loss_fn = nn.MSELoss()
+        feature_loss = sum(loss_fn(f, fn) for f, fn in zip(feature, feature_next))
+
+        ## decoder
+        y = self.decode_head(feature)
         y = F.interpolate(y, size=x[0].shape[2:], mode='bilinear', align_corners=False)
-        return y
+        return y, feature_loss
 
     def init_pretrained(self, pretrained: str = None) -> None:
         if pretrained:
@@ -30,8 +67,10 @@ class CMNeXt(BaseModel):
                     checkpoint = checkpoint['state_dict']
                 if 'model' in checkpoint.keys():
                     checkpoint = checkpoint['model']
-                msg = self.backbone.load_state_dict(checkpoint, strict=False)
-                print(msg)
+                # NOTE
+                # msg = self.backbone.load_state_dict(checkpoint, strict=False)
+                msg = self.load_state_dict(checkpoint, strict=False)
+                # print("init_pretrained message: ", msg)
 
 def load_dualpath_model(model, model_file):
     extra_pretrained = None

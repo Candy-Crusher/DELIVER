@@ -73,10 +73,14 @@ def evaluate(model, dataloader, device, save_dir=None, palette=None):
     for seq_names, seq_index, images, labels in tqdm(dataloader):
         images = [x.to(device) for x in images]
         labels = labels.to(device)
+        event_voxel = images[1]
+        rgb_next = images[2]
+        images = [images[0]]
         if sliding:
             preds = sliding_predict(model, images, num_classes=n_classes).softmax(dim=1)
         else:
-            preds = model(images).softmax(dim=1)
+            preds, _ = model(images, event_voxel, rgb_next)
+            preds = preds.softmax(dim=1)
 
         # 保存图像
         if save_dir is not None:
@@ -93,8 +97,6 @@ def evaluate(model, dataloader, device, save_dir=None, palette=None):
                 rgb_image.save(save_path / idx)
                 pred_argmax.save(save_path / idx.replace('.png', '_labelTrainIds11.png'))
         metrics.update(preds, labels)
-    print('Computing metrics...')
-    print(metrics.hist)
     ious, miou = metrics.compute_iou()
     acc, macc = metrics.compute_pixel_acc()
     f1, mf1 = metrics.compute_f1()

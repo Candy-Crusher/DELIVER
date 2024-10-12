@@ -2,7 +2,7 @@ export PYTHONPATH="/home/xiaoshan/work/adap_v/DELIVER"
 export CUDA_VISIBLE_DEVICES=2,3
 train_dataset='day'
 input_type='rgbe'
-NCCL_P2P_DISABLE=1 torchrun --standalone --nproc_per_node=2 \
+NCCL_P2P_DISABLE=1 torchrun --standalone --nproc_per_node=1 \
   tools/train_mm.py \
   --cfg configs/dsec_${input_type}_${train_dataset}.yaml \
   --input_type ${input_type} \

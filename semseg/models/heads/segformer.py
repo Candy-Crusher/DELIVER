@@ -39,11 +39,9 @@ class SegFormerHead(nn.Module):
     def forward(self, features: Tuple[Tensor, Tensor, Tensor, Tensor]) -> Tensor:
         B, _, H, W = features[0].shape
         outs = [self.linear_c1(features[0]).permute(0, 2, 1).reshape(B, -1, *features[0].shape[-2:])]
-
         for i, feature in enumerate(features[1:]):
             cf = eval(f"self.linear_c{i+2}")(feature).permute(0, 2, 1).reshape(B, -1, *feature.shape[-2:])
             outs.append(F.interpolate(cf, size=(H, W), mode='bilinear', align_corners=False))
-
         seg = self.linear_fuse(torch.cat(outs[::-1], dim=1))
         seg = self.linear_pred(self.dropout(seg))
         return seg

@@ -96,6 +96,7 @@ class DSEC(Dataset):
         event_path = get_cur_name_from_next(lbl_path).replace('/gtFine_next', '/startF1_img_event_50ms/event_20').replace('_gtFine_labelTrainIds11.png', '.npy')
         # lbl_path = rgb.replace('/leftImg8bit', '/gtFine')
         rgb = event_path.replace('/startF1_img_event_50ms/event_20', '/leftImg8bit').replace('.npy', '.png')
+        rgb_next = lbl_path.replace('/gtFine_next', '/leftImg8bit_next').replace('_gtFine_labelTrainIds11.png', '.png')
         if self.n_classes == 12:
             lbl_path = lbl_path.replace('_gtFine_labelTrainIds11.png', '_gtFine_labelTrainIds12.png')
         elif self.n_classes == 19:
@@ -108,20 +109,26 @@ class DSEC(Dataset):
         sample = {}
         sample['img'] = io.read_image(rgb)[:3, ...][:, :440]
         H, W = sample['img'].shape[1:]
-        if 'event' in self.modals:
-            data= np.load(event_path, allow_pickle=True)
-            sample['event'] = torch.from_numpy(data[:, :440])
-            # 20变成sample['event'][:7].mean(0) sample['event'][7:13].mean(0) sample['event'][13:].mean(0) 三通道
-            sample['event'] = torch.cat([sample['event'][:7].mean(0).unsqueeze(0), sample['event'][7:13].mean(0).unsqueeze(0), sample['event'][13:].mean(0).unsqueeze(0)], dim=0)
-
+        sample['img_next'] = io.read_image(rgb_next)[:3, ...][:, :440]
         label = io.read_image(lbl_path)[0,...].unsqueeze(0)
         sample['mask'] = label[:, :440]
+        event_voxel = np.load(event_path, allow_pickle=True)
+        event_voxel = torch.from_numpy(event_voxel[:, :440])
+        # event_voxel = torch.cat([event_voxel[4*i:4*(i+1)].mean(0).unsqueeze(0) for i in range(5)], dim=0)
+        sample['event'] = event_voxel
         if self.transform:
             sample = self.transform(sample)
         label = sample['mask']
         del sample['mask']
         label = self.encode(label.squeeze().numpy()).long()
+        img_next = sample['img_next']
+        del sample['img_next']
+        event_voxel = sample['event']
+        del sample['event']
+
         sample = [sample[k] for k in self.modals]
+        sample.append(event_voxel)
+        sample.append(img_next)
         return seq_name, seq_idx, sample, label
 
     def _open_img(self, file):
