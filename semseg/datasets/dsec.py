@@ -96,6 +96,7 @@ class DSEC(Dataset):
         event_path = get_cur_name_from_next(lbl_path).replace('/gtFine_next', '/startF1_img_event_50ms/event_20').replace('_gtFine_labelTrainIds11.png', '.npy')
         # lbl_path = rgb.replace('/leftImg8bit', '/gtFine')
         rgb = event_path.replace('/startF1_img_event_50ms/event_20', '/leftImg8bit').replace('.npy', '.png')
+        flow = rgb.replace('/leftImg8bit', '/flow').replace('.png', '.npy')
         rgb_next = lbl_path.replace('/gtFine_next', '/leftImg8bit_next').replace('_gtFine_labelTrainIds11.png', '.png')
         if self.n_classes == 12:
             lbl_path = lbl_path.replace('_gtFine_labelTrainIds11.png', '_gtFine_labelTrainIds12.png')
@@ -116,6 +117,10 @@ class DSEC(Dataset):
         event_voxel = torch.from_numpy(event_voxel[:, :440])
         # event_voxel = torch.cat([event_voxel[4*i:4*(i+1)].mean(0).unsqueeze(0) for i in range(5)], dim=0)
         sample['event'] = event_voxel
+        flow = np.load(flow, allow_pickle=True)
+        # print(flow.shape)   # 2 440 640
+        # exit(0)
+        sample['flow'] = torch.from_numpy(flow[:, :440])
         if self.transform:
             sample = self.transform(sample)
         label = sample['mask']
@@ -125,10 +130,13 @@ class DSEC(Dataset):
         del sample['img_next']
         event_voxel = sample['event']
         del sample['event']
+        flow = sample['flow']
+        del sample['flow']
 
         sample = [sample[k] for k in self.modals]
         sample.append(event_voxel)
         sample.append(img_next)
+        sample.append(flow)
         return seq_name, seq_idx, sample, label
 
     def _open_img(self, file):

@@ -93,7 +93,9 @@ def main(cfg, scene, classes, gpu, save_dir):
     for name, param in model.named_parameters():
         if not 'flow_net' in name and not 'softsplat_net' in name:
             param.requires_grad = False
-
+    for name, param in model.named_parameters():
+        if 'decode_head' in name:
+            param.requires_grad = True
     # # 检查哪些参数被冻结了
     # for name, param in model.named_parameters():
     #     print(f"{name}: requires_grad={param.requires_grad}")
@@ -128,12 +130,13 @@ def main(cfg, scene, classes, gpu, save_dir):
             lbl = lbl.to(device)
             event_voxel = sample[1].to(device)
             rgb_next = sample[2].to(device)
+            flow = sample[3].to(device)
             sample = [sample[0]]
             
             with autocast(enabled=train_cfg['AMP']):
-                logits, feature_loss = model(sample, event_voxel, rgb_next)
+                logits, feature_loss = model(sample, event_voxel, rgb_next, flow)
                 # loss = loss_fn(logits, lbl)
-                loss = loss_fn(logits, lbl) + 0.1*feature_loss
+                loss = loss_fn(logits, lbl) + 0.0001*feature_loss
 
             scaler.scale(loss).backward()
             scaler.step(optimizer)

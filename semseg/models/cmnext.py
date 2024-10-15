@@ -7,55 +7,107 @@ from semseg.models.heads import SegFormerHead
 from semseg.models.heads import LightHamHead
 from semseg.models.heads import UPerHead
 from semseg.models.modules.flow_network import unet
+from semseg.models.modules.flow_network.FRMA.modified_frma import EventFlowEstimator
 from semseg.models.modules.flow_network.FRMA.model import flow_network
 from semseg.models.modules.flow_network.FRMA.config import Config
 from semseg.models.modules.softsplat.frame_synthesis import *
 from fvcore.nn import flop_count_table, FlopCountAnalysis
+import matplotlib.pyplot as plt
 
 
 class CMNeXt(BaseModel):
     def __init__(self, backbone: str = 'CMNeXt-B0', num_classes: int = 25, modals: list = ['img', 'depth', 'event', 'lidar']) -> None:
         super().__init__(backbone, num_classes, modals)
         self.decode_head = SegFormerHead(self.backbone.channels, 256 if 'B0' in backbone or 'B1' in backbone else 512, num_classes)
+        # self.flow_net = EventFlowEstimator(in_channels=4, num_multi_flow=1)
         # self.flow_net = unet.UNet(5, 2, False)
-        # self.softsplat_net = Synthesis()
         feature_dims = [64, 128, 320, 512]
-        self.flow_nets = nn.ModuleList(
-            flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=feature_dims[i])
-            for i in range(4)
-        )
+        self.softsplat_net = Synthesis(feature_dims)
+        # self.flow_nets = nn.ModuleList(
+        #     flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=feature_dims[i])
+        #     for i in range(len(feature_dims))
+        # )
         self.apply(self._init_weights)
 
-    def forward(self, x: list, event_voxel: Tensor=None, rgb_next: Tensor=None) -> list:
+    def forward(self, x: list, event_voxel: Tensor=None, rgb_next: Tensor=None, flow: Tensor=None) -> list:
         ## backbone
-        feature = self.backbone(x)
-        feature_next = self.backbone([rgb_next])
-
+        feature_before = self.backbone(x)
+        # feature_next = self.backbone([rgb_next])
+        
         feature_loss = 0
         # # flownet
         # # timelens unet + softsplat
+        # # event_voxel = event_voxel.unfold(1, 4, 4).permute(0, 4, 1, 2, 3)
         # # flow = self.flow_net(event_voxel)
         # B, C, H ,W = x[0].shape
-        # flow = torch.zeros(B, 2, H, W).to(x[0].device)
-        # feature = self.softsplat_net(x[0], feature, flow)
+        # # flow = torch.zeros(B, 2, H, W).to(x[0].device)
+        # # 可视化特征和光流
+        # # 可视化feature在四个子图里
+        feature_after, interFlow = self.softsplat_net(feature_before, flow)
+        # if residual
+        for i, fea in enumerate(feature_before):
+            feature_after[i] = feature_after[i] + fea
         # # end
 
-        ## FRAM
-        # event_voxel B T H W
-        # T = 20
-        # 变成[[0,1,2,3], [4,5,6,7], [8,9,10,11], [12,13,14,15], [16,17,18,19]]这样 B C=4 T=5 H W的shape
-        event_voxel = event_voxel.unfold(1, 4, 4).permute(0, 4, 1, 2, 3)
-        for i, fea in enumerate(feature):
-            feature[i] = self.flow_nets[i](event_voxel, fea, x[0])
+        # ## FRAM
+        # # event_voxel B T H W
+        # # T = 20
+        # # 变成[[0,1,2,3], [4,5,6,7], [8,9,10,11], [12,13,14,15], [16,17,18,19]]这样 B C=4 T=5 H W的shape
+        # feature_after = [None, None, None, None]
+        # interFlow = [None, None, None, None]
+        # event_voxel = event_voxel.unfold(1, 4, 4).permute(0, 4, 1, 2, 3)
+        # for i, fea in enumerate(feature_before):
+        #     feature_after[i], interFlow[i] = self.flow_nets[i](event_voxel, fea)
 
+        # self.visualize_all([x[0]]+feature_before, [rgb_next]+feature_after, [rgb_next]+feature_next, [flow]+interFlow)
+        # self.visualize_all([x[0]]+feature_before, feature_after, [rgb_next]+feature_next, interFlow)
+        # exit(0)  
         ## 计算监督损失
-        loss_fn = nn.MSELoss()
-        feature_loss = sum(loss_fn(f, fn) for f, fn in zip(feature, feature_next))
-
-        ## decoder
-        y = self.decode_head(feature)
+        # loss_fn = nn.MSELoss()
+        # feature_loss = sum(loss_fn(f, fn) for f, fn in zip(feature_after, feature_next))
+      ## decoder
+        y = self.decode_head(feature_after)
         y = F.interpolate(y, size=x[0].shape[2:], mode='bilinear', align_corners=False)
         return y, feature_loss
+    
+    def visualize_features(self, features, axes, title_prefix):
+        for i, feature in enumerate(features):
+            # 取第一个batch的特征图
+            feature_map = feature[0].detach().cpu().numpy()
+            # 取平均值以减少通道维度
+            feature_map = feature_map.mean(0)
+            h, w = feature_map.shape
+            axes[i].imshow(feature_map, cmap='viridis', extent=[0, w, 0, h])
+            axes[i].set_title(f'{title_prefix} Scale {i+1}')
+            axes[i].axis('off')
+
+    def visualize_flow(self, flows, axes, title_prefix):
+        for i, flow in enumerate(flows):
+            flow_map = flow[0].detach().cpu().numpy()
+            flow_magnitude = (flow_map ** 2).sum(axis=0) ** 0.5
+            axes[i].imshow(flow_magnitude, cmap='plasma')
+            axes[i].set_title(f'{title_prefix} {i+1}', fontsize=10)
+            axes[i].axis('off')
+
+    def visualize_all(self, feature_before, feature_after, feature_next, interFlow):
+        num_features = len(feature_before)
+        fig, axes = plt.subplots(4, num_features, figsize=(20, 12))
+
+        # 可视化特征图（处理前）
+        self.visualize_features(feature_before, axes[0], 'Before')
+
+        # 可视化特征图（处理后）
+        self.visualize_features(feature_after, axes[1], 'After')
+
+        # 可视化特征图（下一步）
+        self.visualize_features(feature_next, axes[2], 'Next')
+
+        # 可视化光流
+        self.visualize_flow(interFlow, axes[3], 'Flow')
+
+        plt.tight_layout(pad=2.0)
+        plt.savefig('features_and_flow.png', dpi=150)
+        plt.show()
 
     def init_pretrained(self, pretrained: str = None) -> None:
         if pretrained:

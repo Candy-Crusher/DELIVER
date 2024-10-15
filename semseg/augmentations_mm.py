@@ -32,7 +32,7 @@ class Normalize:
         for k, v in sample.items():
             if k == 'mask':
                 continue
-            elif k == 'img':
+            elif k == 'img' or k == 'img_next':
                 sample[k] = sample[k].float()
                 sample[k] /= 255
                 sample[k] = TF.normalize(sample[k], self.mean, self.std)
@@ -109,11 +109,17 @@ class RandomHorizontalFlip:
     def __init__(self, p: float = 0.5) -> None:
         self.p = p
 
-    def __call__(self, sample: list) -> list:
+    def __call__(self, sample: dict) -> dict:
         if random.random() < self.p:
             for k, v in sample.items():
-                sample[k] = TF.hflip(v)
-            return sample
+                if k == 'flow':
+                    # 水平翻转光流图像
+                    v = TF.hflip(v)
+                    # 反转水平分量的符号
+                    v[0, :, :] = -v[0, :, :]
+                    sample[k] = v
+                else:
+                    sample[k] = TF.hflip(v)
         return sample
 
 

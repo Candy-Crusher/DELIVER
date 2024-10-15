@@ -8,9 +8,8 @@ class Synthesis(torch.nn.Module):
     1) Warping only one frame with forward flow;
     2) Estimating the importance metric from the input frame and forward flow."""
     
-    def __init__(self):
+    def __init__(self, feature_dims):
         super().__init__()
-
 
         class Basic(torch.nn.Module):
             def __init__(self, strType, intChannels, boolSkip):
@@ -66,37 +65,39 @@ class Synthesis(torch.nn.Module):
                 super().__init__()
                 self.nets = nn.ModuleList([
                     Basic('conv-relu-conv', [embed_dim[i] + 1, embed_dim[i], embed_dim[i]], True)
-                    for i in range(4)
+                    for i in range(len(embed_dim))
                 ])
             # end
 
             def forward(self, tenEncone, tenMetricone, tenForward):
                 tenOutput = []
+                tenFlow = []
 
-                for intLevel in range(4):
+                for intLevel in range(len(tenEncone)):
                     tenMetricone = torch.nn.functional.interpolate(input=tenMetricone, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
                     
                     tenForward = torch.nn.functional.interpolate(input=tenForward, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False) * (float(tenEncone[intLevel].shape[3]) / float(tenForward.shape[3]))
-                    
+                    tenFlow.append(tenForward)
+                    print(tenEncone[intLevel].shape, softsplat(tenIn=torch.cat([tenEncone[intLevel], tenMetricone], 1), tenFlow=tenForward, tenMetric=tenMetricone, strMode='soft').shape)
+                    exit(0)
                     tenOutput.append(self.nets[intLevel](
                         softsplat(tenIn=torch.cat([tenEncone[intLevel], tenMetricone], 1), tenFlow=tenForward, tenMetric=tenMetricone, strMode='soft')
                     ))
                 # end
 
-                return tenOutput
+                return tenOutput, tenFlow
             # end
         # end
 
-        embed_dim = [64, 128, 320, 512]
 
-        self.netWarp = Warp(embed_dim)
+        self.netWarp = Warp(feature_dims)
 
-    def forward(self, tenOne, tenEncone, tenForward):
+    def forward(self, tenEncone, tenForward):
         tenMetricone = torch.sqrt(torch.square(tenForward[:, 0, :, :] + tenForward[:, 1, :, :])).unsqueeze(1)
 
-        tenWarp = self.netWarp(tenEncone, tenMetricone, tenForward)
+        tenWarp, tenFlow = self.netWarp(tenEncone, tenMetricone, tenForward)
 
-        return tenWarp
+        return tenWarp, tenFlow
 
 @torch.no_grad()
 def predict_tensor(src_frame: torch.Tensor, flow: torch.Tensor, model: Synthesis, batch_size: int = 32):

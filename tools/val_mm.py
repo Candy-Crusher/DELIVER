@@ -75,11 +75,12 @@ def evaluate(model, dataloader, device, save_dir=None, palette=None):
         labels = labels.to(device)
         event_voxel = images[1]
         rgb_next = images[2]
+        flow = images[3]
         images = [images[0]]
         if sliding:
             preds = sliding_predict(model, images, num_classes=n_classes).softmax(dim=1)
         else:
-            preds, _ = model(images, event_voxel, rgb_next)
+            preds, _ = model(images, event_voxel, rgb_next, flow)
             preds = preds.softmax(dim=1)
 
         # 保存图像
