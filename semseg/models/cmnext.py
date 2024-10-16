@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 
 class CMNeXt(BaseModel):
     def __init__(self, backbone: str = 'CMNeXt-B0', num_classes: int = 25, modals: list = ['img', 'depth', 'event', 'lidar']) -> None:
-        super().__init__(backbone, num_classes, modals)
+        super().__init__(backbone, num_classes, modals, with_events=True)
         self.decode_head = SegFormerHead(self.backbone.channels, 256 if 'B0' in backbone or 'B1' in backbone else 512, num_classes)
         # self.flow_net = EventFlowEstimator(in_channels=4, num_multi_flow=1)
         # self.flow_net = unet.UNet(5, 2, False)
@@ -31,7 +31,7 @@ class CMNeXt(BaseModel):
 
     def forward(self, x: list, event_voxel: Tensor=None, rgb_next: Tensor=None, flow: Tensor=None) -> list:
         ## backbone
-        feature_before = self.backbone(x)
+        feature_before, event_feature_before = self.backbone(x, [event_voxel])
         # feature_next = self.backbone([rgb_next])
         
         feature_loss = 0
@@ -43,10 +43,10 @@ class CMNeXt(BaseModel):
         # # flow = torch.zeros(B, 2, H, W).to(x[0].device)
         # # 可视化特征和光流
         # # 可视化feature在四个子图里
-        feature_after, interFlow = self.softsplat_net(feature_before, flow)
-        # if residual
-        for i, fea in enumerate(feature_before):
-            feature_after[i] = feature_after[i] + fea
+        feature_after, interFlow = self.softsplat_net(feature_before, event_feature_before, flow, event_voxel)
+        # # if residual
+        # for i, fea in enumerate(feature_before):
+        #     feature_after[i] = feature_after[i] + fea
         # # end
 
         # ## FRAM

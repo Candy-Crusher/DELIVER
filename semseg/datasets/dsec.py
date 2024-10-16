@@ -115,7 +115,7 @@ class DSEC(Dataset):
         sample['mask'] = label[:, :440]
         event_voxel = np.load(event_path, allow_pickle=True)
         event_voxel = torch.from_numpy(event_voxel[:, :440])
-        # event_voxel = torch.cat([event_voxel[4*i:4*(i+1)].mean(0).unsqueeze(0) for i in range(5)], dim=0)
+        event_voxel = torch.cat([event_voxel[4*i:4*(i+1)].mean(0).unsqueeze(0) for i in range(5)], dim=0)
         sample['event'] = event_voxel
         flow = np.load(flow, allow_pickle=True)
         # print(flow.shape)   # 2 440 640

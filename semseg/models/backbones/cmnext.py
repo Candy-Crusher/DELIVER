@@ -206,13 +206,14 @@ cmnext_settings = {
 
 
 class CMNeXt(nn.Module):
-    def __init__(self, model_name: str = 'B0', modals: list = ['rgb', 'depth', 'event', 'lidar']):
+    def __init__(self, model_name: str = 'B0', modals: list = ['rgb', 'depth', 'event', 'lidar'], with_events=False) -> None:
         super().__init__()
         assert model_name in cmnext_settings.keys(), f"Model name should be in {list(cmnext_settings.keys())}"
         embed_dims, depths = cmnext_settings[model_name]
         extra_depths = depths 
         self.modals = modals[1:] if len(modals)>1 else []  
         self.num_modals = len(self.modals)
+        self.with_events = with_events
         drop_path_rate = 0.1
         self.channels = embed_dims
         norm_cfg = dict(type='BN', requires_grad=True)
@@ -223,10 +224,11 @@ class CMNeXt(nn.Module):
         self.patch_embed3 = PatchEmbed(embed_dims[1], embed_dims[2], 3, 2, 3//2)
         self.patch_embed4 = PatchEmbed(embed_dims[2], embed_dims[3], 3, 2, 3//2)
    
-        if self.num_modals > 0:
+        # if self.num_modals > 0:
+        if self.with_events:
             self.extra_downsample_layers = nn.ModuleList([
-                PatchEmbedParallel(3, embed_dims[0], 7, 4, 7//2, self.num_modals),
-                *[PatchEmbedParallel(embed_dims[i], embed_dims[i+1], 3, 2, 3//2, self.num_modals) for i in range(3)]
+                PatchEmbedParallel(5, embed_dims[0], 7, 4, 7//2, 1),
+                *[PatchEmbedParallel(embed_dims[i], embed_dims[i+1], 3, 2, 3//2, 1) for i in range(3)]
             ])
         if self.num_modals > 1:
             self.extra_score_predictor = nn.ModuleList([PredictorConv(embed_dims[i], self.num_modals) for i in range(len(depths))])
@@ -236,43 +238,47 @@ class CMNeXt(nn.Module):
         cur = 0
         self.block1 = nn.ModuleList([Block(embed_dims[0], 1, 8, dpr[cur+i]) for i in range(depths[0])])
         self.norm1 = nn.LayerNorm(embed_dims[0])
-        if self.num_modals > 0:
+        # if self.num_modals > 0:
+        if self.with_events:
             self.extra_block1 = nn.ModuleList([MSPABlock(embed_dims[0], mlp_ratio=8, drop_path=dpr[cur+i], norm_cfg=norm_cfg) for i in range(extra_depths[0])]) # --- MSPABlock
             self.extra_norm1 = ConvLayerNorm(embed_dims[0])
             
         cur += depths[0]
         self.block2 = nn.ModuleList([Block(embed_dims[1], 2, 4, dpr[cur+i]) for i in range(depths[1])])
         self.norm2 = nn.LayerNorm(embed_dims[1])
-        if self.num_modals > 0:
+        # if self.num_modals > 0:
+        if self.with_events:
             self.extra_block2 = nn.ModuleList([MSPABlock(embed_dims[1], mlp_ratio=8, drop_path=dpr[cur+i], norm_cfg=norm_cfg) for i in range(extra_depths[1])])
             self.extra_norm2 = ConvLayerNorm(embed_dims[1])
 
         cur += depths[1]
         self.block3 = nn.ModuleList([Block(embed_dims[2], 5, 2, dpr[cur+i]) for i in range(depths[2])])
         self.norm3 = nn.LayerNorm(embed_dims[2])
-        if self.num_modals > 0:
+        # if self.num_modals > 0:
+        if self.with_events:
             self.extra_block3 = nn.ModuleList([MSPABlock(embed_dims[2], mlp_ratio=4, drop_path=dpr[cur+i], norm_cfg=norm_cfg) for i in range(extra_depths[2])])
             self.extra_norm3 = ConvLayerNorm(embed_dims[2])
 
         cur += depths[2]
         self.block4 = nn.ModuleList([Block(embed_dims[3], 8, 1, dpr[cur+i]) for i in range(depths[3])])
         self.norm4 = nn.LayerNorm(embed_dims[3])
-        if self.num_modals > 0:
+        # if self.num_modals > 0:
+        if self.with_events:
             self.extra_block4 = nn.ModuleList([MSPABlock(embed_dims[3], mlp_ratio=4, drop_path=dpr[cur+i], norm_cfg=norm_cfg) for i in range(extra_depths[3])])
             self.extra_norm4 = ConvLayerNorm(embed_dims[3])
 
-        if self.num_modals > 0:
-            num_heads = [1,2,5,8]
-            self.FRMs = nn.ModuleList([
-                FRM(dim=embed_dims[0], reduction=1),
-                FRM(dim=embed_dims[1], reduction=1),
-                FRM(dim=embed_dims[2], reduction=1),
-                FRM(dim=embed_dims[3], reduction=1)])
-            self.FFMs = nn.ModuleList([
-                FFM(dim=embed_dims[0], reduction=1, num_heads=num_heads[0], norm_layer=nn.BatchNorm2d),
-                FFM(dim=embed_dims[1], reduction=1, num_heads=num_heads[1], norm_layer=nn.BatchNorm2d),
-                FFM(dim=embed_dims[2], reduction=1, num_heads=num_heads[2], norm_layer=nn.BatchNorm2d),
-                FFM(dim=embed_dims[3], reduction=1, num_heads=num_heads[3], norm_layer=nn.BatchNorm2d)])
+        # if self.num_modals > 0:
+        #     num_heads = [1,2,5,8]
+        #     self.FRMs = nn.ModuleList([
+        #         FRM(dim=embed_dims[0], reduction=1),
+        #         FRM(dim=embed_dims[1], reduction=1),
+        #         FRM(dim=embed_dims[2], reduction=1),
+        #         FRM(dim=embed_dims[3], reduction=1)])
+        #     self.FFMs = nn.ModuleList([
+        #         FFM(dim=embed_dims[0], reduction=1, num_heads=num_heads[0], norm_layer=nn.BatchNorm2d),
+        #         FFM(dim=embed_dims[1], reduction=1, num_heads=num_heads[1], norm_layer=nn.BatchNorm2d),
+        #         FFM(dim=embed_dims[2], reduction=1, num_heads=num_heads[2], norm_layer=nn.BatchNorm2d),
+        #         FFM(dim=embed_dims[3], reduction=1, num_heads=num_heads[3], norm_layer=nn.BatchNorm2d)])
 
     def tokenselect(self, x_ext, module):    
         x_scores = module(x_ext) 
@@ -281,26 +287,31 @@ class CMNeXt(nn.Module):
         x_f = functools.reduce(torch.max, x_ext)
         return x_f
      
-    def forward(self, x: list) -> list:
+    def forward(self, x: list, x_ext: list) -> list:
         x_cam = x[0]        
         if self.num_modals > 0:
             x_ext = x[1:]
         B = x_cam.shape[0]
         outs = []
+        if self.with_events:
+            outs_event = []
         # stage 1
         x_cam, H, W = self.patch_embed1(x_cam)
         for blk in self.block1:
             x_cam = blk(x_cam, H, W)
         x1_cam = self.norm1(x_cam).reshape(B, H, W, -1).permute(0, 3, 1, 2)
-        if self.num_modals > 0:
+        # if self.num_modals > 0:
+        if self.with_events:
             x_ext, _, _ = self.extra_downsample_layers[0](x_ext)
             x_f = self.tokenselect(x_ext, self.extra_score_predictor[0]) if self.num_modals > 1 else x_ext[0] 
             for blk in self.extra_block1:
                 x_f = blk(x_f)
             x1_f = self.extra_norm1(x_f)
-            x1_cam, x1_f = self.FRMs[0](x1_cam, x1_f)
-            x_fused = self.FFMs[0](x1_cam, x1_f)
-            outs.append(x_fused)
+            # x1_cam, x1_f = self.FRMs[0](x1_cam, x1_f)
+            # x_fused = self.FFMs[0](x1_cam, x1_f)
+            # outs.append(x_fused)
+            outs.append(x1_cam)
+            outs_event.append(x1_f)
             x_ext = [x_.reshape(B, H, W, -1).permute(0, 3, 1, 2) + x1_f for x_ in x_ext] if self.num_modals > 1 else [x1_f]
         else:
             outs.append(x1_cam)
@@ -310,16 +321,19 @@ class CMNeXt(nn.Module):
         for blk in self.block2:
             x_cam = blk(x_cam, H, W)
         x2_cam = self.norm2(x_cam).reshape(B, H, W, -1).permute(0, 3, 1, 2)
-        if self.num_modals > 0:
+        # if self.num_modals > 0:
+        if self.with_events:
             x_ext, _, _ = self.extra_downsample_layers[1](x_ext)
             x_f = self.tokenselect(x_ext, self.extra_score_predictor[1]) if self.num_modals > 1 else x_ext[0] 
             for blk in self.extra_block2:
                 x_f = blk(x_f)
             
             x2_f = self.extra_norm2(x_f)
-            x2_cam, x2_f = self.FRMs[1](x2_cam, x2_f)
-            x_fused = self.FFMs[1](x2_cam, x2_f)
-            outs.append(x_fused)
+            # x2_cam, x2_f = self.FRMs[1](x2_cam, x2_f)
+            # x_fused = self.FFMs[1](x2_cam, x2_f)
+            # outs.append(x_fused)
+            outs.append(x2_cam)
+            outs_event.append(x2_f)
             x_ext = [x_.reshape(B, H, W, -1).permute(0, 3, 1, 2) + x2_f for x_ in x_ext] if self.num_modals > 1 else [x2_f]
         else:
             outs.append(x2_cam)
@@ -329,16 +343,19 @@ class CMNeXt(nn.Module):
         for blk in self.block3:
             x_cam = blk(x_cam, H, W)
         x3_cam = self.norm3(x_cam).reshape(B, H, W, -1).permute(0, 3, 1, 2)
-        if self.num_modals > 0:
+        # if self.num_modals > 0:
+        if self.with_events:
             x_ext, _, _ = self.extra_downsample_layers[2](x_ext)
             x_f = self.tokenselect(x_ext, self.extra_score_predictor[2]) if self.num_modals > 1 else x_ext[0] 
             for blk in self.extra_block3:
                 x_f = blk(x_f)
             
             x3_f = self.extra_norm3(x_f)
-            x3_cam, x3_f = self.FRMs[2](x3_cam, x3_f)
-            x_fused = self.FFMs[2](x3_cam, x3_f)
-            outs.append(x_fused)
+            # x3_cam, x3_f = self.FRMs[2](x3_cam, x3_f)
+            # x_fused = self.FFMs[2](x3_cam, x3_f)
+            # outs.append(x_fused)
+            outs.append(x3_cam)
+            outs_event.append(x3_f)
             x_ext = [x_.reshape(B, H, W, -1).permute(0, 3, 1, 2) + x3_f for x_ in x_ext] if self.num_modals > 1 else [x3_f]
         else:
             outs.append(x3_cam)
@@ -348,20 +365,26 @@ class CMNeXt(nn.Module):
         for blk in self.block4:
             x_cam = blk(x_cam, H, W)
         x4_cam = self.norm4(x_cam).reshape(B, H, W, -1).permute(0, 3, 1, 2)
-        if self.num_modals > 0:
+        # if self.num_modals > 0:
+        if self.with_events:
             x_ext, _, _ = self.extra_downsample_layers[3](x_ext)
             x_f = self.tokenselect(x_ext, self.extra_score_predictor[3]) if self.num_modals > 1 else x_ext[0] 
             for blk in self.extra_block4:
                 x_f = blk(x_f)
             
             x4_f = self.extra_norm4(x_f)
-            x4_cam, x4_f = self.FRMs[3](x4_cam, x4_f)
-            x_fused = self.FFMs[3](x4_cam, x4_f)
-            outs.append(x_fused)
+            # x4_cam, x4_f = self.FRMs[3](x4_cam, x4_f)
+            # x_fused = self.FFMs[3](x4_cam, x4_f)
+            # outs.append(x_fused)
+            outs.append(x4_cam)
+            outs_event.append(x4_f)
         else:
             outs.append(x4_cam)
 
-        return outs
+        if x_ext is not None:
+            return outs, outs_event
+        else:
+            outs
 
 
 if __name__ == '__main__':
