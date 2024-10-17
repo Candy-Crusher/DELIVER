@@ -287,7 +287,7 @@ class CMNeXt(nn.Module):
         x_f = functools.reduce(torch.max, x_ext)
         return x_f
      
-    def forward(self, x: list, x_ext: list) -> list:
+    def forward(self, x: list, x_ext: list=None) -> list:
         x_cam = x[0]        
         if self.num_modals > 0:
             x_ext = x[1:]
@@ -384,7 +384,7 @@ class CMNeXt(nn.Module):
         if x_ext is not None:
             return outs, outs_event
         else:
-            outs
+            return outs
 
 
 if __name__ == '__main__':

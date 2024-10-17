@@ -13,7 +13,8 @@ from torch.utils.data import DataLoader
 from torch.utils.data import DistributedSampler, RandomSampler
 from semseg.augmentations_mm import get_train_augmentation
 import re
-def get_cur_name_from_next(filepath):
+import random
+def get_new_name(filepath, idx_diff):
     # 正则表达式匹配文件名中的编号部分
     filename = os.path.basename(filepath)
     pattern = re.compile(r'(\d+)_gtFine_labelTrainIds11\.png')
@@ -23,7 +24,7 @@ def get_cur_name_from_next(filepath):
         # 提取编号部分
         number = match.group(1)
         # 构建新的文件名
-        new_filename = f'{int(number)-1:06d}_gtFine_labelTrainIds11.png'
+        new_filename = f'{int(number)+idx_diff:06d}_gtFine_labelTrainIds11.png'
         # 构建完整的路径名
         new_filepath = filepath.replace(f'{number}_gtFine_labelTrainIds11.png', new_filename)
         return new_filepath
@@ -90,14 +91,22 @@ class DSEC(Dataset):
         return len(self.files)
     
     def __getitem__(self, index: int) -> Tuple[Tensor, Tensor]:
-        # rgb = str(self.files[index])
-        lbl_path = str(self.files[index])
-        # event_path = rgb.replace('/leftImg8bit', '/event_20').replace('.png', '.npy')
-        event_path = get_cur_name_from_next(lbl_path).replace('/gtFine_next', '/startF1_img_event_50ms/event_20').replace('_gtFine_labelTrainIds11.png', '.npy')
-        # lbl_path = rgb.replace('/leftImg8bit', '/gtFine')
-        rgb = event_path.replace('/startF1_img_event_50ms/event_20', '/leftImg8bit').replace('.npy', '.png')
-        flow = rgb.replace('/leftImg8bit', '/flow').replace('.png', '.npy')
-        rgb_next = lbl_path.replace('/gtFine_next', '/leftImg8bit_next').replace('_gtFine_labelTrainIds11.png', '.png')
+        # 50%的概率inverse
+        reverse_flag = False
+        if random.random() < 0.5:
+            lbl_path = str(self.files[index])
+            event_path = get_new_name(lbl_path, idx_diff=-1).replace('/gtFine_next', '/startF1_img_event_50ms/event_20').replace('_gtFine_labelTrainIds11.png', '.npy')
+            rgb = event_path.replace('/startF1_img_event_50ms/event_20', '/leftImg8bit').replace('.npy', '.png')
+            flow = rgb.replace('/leftImg8bit', '/flow').replace('.png', '.npy')
+            rgb_ref = lbl_path.replace('/gtFine_next', '/leftImg8bit_next').replace('_gtFine_labelTrainIds11.png', '.png')
+        else:
+            reverse_flag = True
+            lbl_path_next = str(self.files[index])
+            lbl_path = get_new_name(lbl_path_next, idx_diff=-1).replace('/gtFine_next', '/gtFine_cur')
+            event_path = lbl_path.replace('/gtFine_cur', '/startF1_img_event_50ms/event_20').replace('_gtFine_labelTrainIds11.png', '.npy')
+            rgb = lbl_path_next.replace('/gtFine_next', '/leftImg8bit_next').replace('_gtFine_labelTrainIds11.png', '.png')
+            flow = rgb.replace('/leftImg8bit_next', '/flow_reverse').replace('.png', '.npy')
+            rgb_ref = lbl_path.replace('/gtFine_cur', '/leftImg8bit').replace('_gtFine_labelTrainIds11.png', '.png')
         if self.n_classes == 12:
             lbl_path = lbl_path.replace('_gtFine_labelTrainIds11.png', '_gtFine_labelTrainIds12.png')
         elif self.n_classes == 19:
@@ -110,11 +119,13 @@ class DSEC(Dataset):
         sample = {}
         sample['img'] = io.read_image(rgb)[:3, ...][:, :440]
         H, W = sample['img'].shape[1:]
-        sample['img_next'] = io.read_image(rgb_next)[:3, ...][:, :440]
+        sample['img_next'] = io.read_image(rgb_ref)[:3, ...][:, :440]
         label = io.read_image(lbl_path)[0,...].unsqueeze(0)
         sample['mask'] = label[:, :440]
         event_voxel = np.load(event_path, allow_pickle=True)
         event_voxel = torch.from_numpy(event_voxel[:, :440])
+        if reverse_flag:
+            event_voxel = torch.flip(event_voxel, dims=[0])
         event_voxel = torch.cat([event_voxel[4*i:4*(i+1)].mean(0).unsqueeze(0) for i in range(5)], dim=0)
         sample['event'] = event_voxel
         flow = np.load(flow, allow_pickle=True)

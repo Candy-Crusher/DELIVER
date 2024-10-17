@@ -2,6 +2,130 @@ import torch
 from torch import nn, Tensor
 from torch.nn import functional as F
 
+def SSIM_(x, y, C1=1e-4, C2=9e-4, kernel_size=3, stride=1):
+    """
+    Structural SIMilarity (SSIM) distance between two images.
+
+    Parameters
+    ----------
+    x,y : torch.Tensor [B,3,H,W]
+        Input images
+    C1,C2 : float
+        SSIM parameters
+    kernel_size,stride : int
+        Convolutional parameters
+
+    Returns
+    -------
+    ssim : torch.Tensor [1]
+        SSIM distance
+    """
+    pool2d = nn.AvgPool2d(kernel_size, stride=stride)
+    refl = nn.ReflectionPad2d(1)
+
+    x, y = refl(x), refl(y)
+    mu_x = pool2d(x)
+    mu_y = pool2d(y)
+
+    mu_x_mu_y = mu_x * mu_y
+    mu_x_sq = mu_x.pow(2)
+    mu_y_sq = mu_y.pow(2)
+
+    sigma_x = pool2d(x.pow(2)) - mu_x_sq
+    sigma_y = pool2d(y.pow(2)) - mu_y_sq
+    sigma_xy = pool2d(x * y) - mu_x_mu_y
+    v1 = 2 * sigma_xy + C2
+    v2 = sigma_x + sigma_y + C2
+
+    ssim_n = (2 * mu_x_mu_y + C1) * v1
+    ssim_d = (mu_x_sq + mu_y_sq + C1) * v2
+    ssim = ssim_n / ssim_d
+
+    return ssim
+
+def SSIM(x, y, kernel_size=3):
+    """
+    Calculates the SSIM (Structural SIMilarity) loss
+
+    Parameters
+    ----------
+    x,y : torch.Tensor [B,3,H,W]
+        Input images
+    kernel_size : int
+        Convolutional parameter
+
+    Returns
+    -------
+    ssim : torch.Tensor [1]
+        SSIM loss
+    """
+    ssim_value = SSIM_(x, y, kernel_size=kernel_size)
+    return torch.clamp((1. - ssim_value) / 2., 0., 1.)
+
+def calc_photometric_loss(t_est, images, ssim_loss_weight=0.85, clip_loss=0):
+    """
+    Calculates the photometric loss (L1 + SSIM)
+    Parameters
+    ----------
+    t_est : list of torch.Tensor [B,3,H,W]
+        List of warped reference images in multiple scales
+    images : list of torch.Tensor [B,3,H,W]
+        List of original images in multiple scales
+
+    Returns
+    -------
+    photometric_loss : torch.Tensor [1]
+        Photometric loss
+    """
+    # L1 loss
+    l1_loss = [torch.abs(t_est[i] - images[i])
+                for i in range(len(t_est))]
+    # SSIM loss
+    if ssim_loss_weight > 0.0:
+        ssim_loss = [SSIM(t_est[i], images[i], kernel_size=3)
+                        for i in range(len(t_est))]
+        # Weighted Sum: alpha * ssim + (1 - alpha) * l1
+        photometric_loss = [ssim_loss_weight * ssim_loss[i].mean(1, True) +
+                            (1 - ssim_loss_weight) * l1_loss[i].mean(1, True)
+                            for i in range(len(t_est))]
+    else:
+        photometric_loss = l1_loss
+    # Clip loss
+    if clip_loss > 0.0:
+        for i in range(len(photometric_loss)):
+            mean, std = photometric_loss[i].mean(), photometric_loss[i].std()
+            photometric_loss[i] = torch.clamp(
+                photometric_loss[i], max=float(mean + clip_loss * std))
+    # Return total photometric loss
+    return photometric_loss
+
+def reduce_photometric_loss(photometric_losses, photometric_reduce_op='min'):
+    """
+    Combine the photometric loss from all context images
+
+    Parameters
+    ----------
+    photometric_losses : list of torch.Tensor [B,3,H,W]
+        Pixel-wise photometric losses from the entire context
+
+    Returns
+    -------
+    photometric_loss : torch.Tensor [1]
+        Reduced photometric loss
+    """
+    # Reduce function
+    def reduce_function(losses):
+        if photometric_reduce_op == 'mean':
+            return sum([l.mean() for l in losses]) / len(losses)
+        elif photometric_reduce_op == 'min':
+            return torch.cat(losses, 1).min(1, True)[0].mean()
+        else:
+            raise NotImplementedError(
+                'Unknown photometric_reduce_op: {}'.format(photometric_reduce_op))
+    # Reduce photometric loss
+    photometric_loss = sum([reduce_function(photometric_losses[i])
+                            for i in range(len(photometric_losses))]) / len(photometric_losses)
+    return photometric_loss
 
 class CrossEntropy(nn.Module):
     def __init__(self, ignore_label: int = 255, weight: Tensor = None, aux_weights: list = [1, 0.4, 0.4]) -> None:

@@ -11,13 +11,14 @@ from semseg.models.modules.flow_network.FRMA.modified_frma import EventFlowEstim
 from semseg.models.modules.flow_network.FRMA.model import flow_network
 from semseg.models.modules.flow_network.FRMA.config import Config
 from semseg.models.modules.softsplat.frame_synthesis import *
+from semseg.losses import calc_photometric_loss, reduce_photometric_loss
 from fvcore.nn import flop_count_table, FlopCountAnalysis
 import matplotlib.pyplot as plt
 
 
 class CMNeXt(BaseModel):
     def __init__(self, backbone: str = 'CMNeXt-B0', num_classes: int = 25, modals: list = ['img', 'depth', 'event', 'lidar']) -> None:
-        super().__init__(backbone, num_classes, modals, with_events=True)
+        super().__init__(backbone, num_classes, modals, with_events=False)
         self.decode_head = SegFormerHead(self.backbone.channels, 256 if 'B0' in backbone or 'B1' in backbone else 512, num_classes)
         # self.flow_net = EventFlowEstimator(in_channels=4, num_multi_flow=1)
         # self.flow_net = unet.UNet(5, 2, False)
@@ -31,8 +32,9 @@ class CMNeXt(BaseModel):
 
     def forward(self, x: list, event_voxel: Tensor=None, rgb_next: Tensor=None, flow: Tensor=None) -> list:
         ## backbone
-        feature_before, event_feature_before = self.backbone(x, [event_voxel])
-        # feature_next = self.backbone([rgb_next])
+        # feature_before, event_feature_before = self.backbone(x, [event_voxel])
+        feature_before = self.backbone(x)
+        feature_next = self.backbone([rgb_next])
         
         feature_loss = 0
         # # flownet
@@ -43,7 +45,7 @@ class CMNeXt(BaseModel):
         # # flow = torch.zeros(B, 2, H, W).to(x[0].device)
         # # 可视化特征和光流
         # # 可视化feature在四个子图里
-        feature_after, interFlow = self.softsplat_net(feature_before, event_feature_before, flow, event_voxel)
+        feature_after, interFlow = self.softsplat_net(feature_before, flow, event_voxel)
         # # if residual
         # for i, fea in enumerate(feature_before):
         #     feature_after[i] = feature_after[i] + fea
@@ -65,6 +67,8 @@ class CMNeXt(BaseModel):
         ## 计算监督损失
         # loss_fn = nn.MSELoss()
         # feature_loss = sum(loss_fn(f, fn) for f, fn in zip(feature_after, feature_next))
+        photometric_losses = [calc_photometric_loss(f, fn) for f, fn in zip(feature_after, feature_next)]
+        feature_loss = reduce_photometric_loss(photometric_losses)
       ## decoder
         y = self.decode_head(feature_after)
         y = F.interpolate(y, size=x[0].shape[2:], mode='bilinear', align_corners=False)
