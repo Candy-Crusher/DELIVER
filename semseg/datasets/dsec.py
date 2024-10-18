@@ -14,6 +14,47 @@ from torch.utils.data import DistributedSampler, RandomSampler
 from semseg.augmentations_mm import get_train_augmentation
 import re
 import random
+
+from scipy.ndimage import gaussian_filter
+
+def backwarp(tenIn, tenFlow):
+    tenHor = torch.linspace(start=-1.0, end=1.0, steps=tenFlow.shape[2], dtype=tenFlow.dtype).view(1, 1, -1).repeat(1, tenFlow.shape[1], 1)
+    tenVer = torch.linspace(start=-1.0, end=1.0, steps=tenFlow.shape[1], dtype=tenFlow.dtype).view(1, -1, 1).repeat(1, 1, tenFlow.shape[2])
+    tenGrid = torch.cat([tenHor, tenVer], 0)
+
+    tenFlow = torch.cat([tenFlow[0:1, :, :] / ((tenIn.shape[2] - 1.0) / 2.0), tenFlow[1:2, :, :] / ((tenIn.shape[1] - 1.0) / 2.0)] , 0)
+
+    return torch.nn.functional.grid_sample(input=tenIn.unsqueeze(0), grid=(tenGrid + tenFlow).permute(1,2,0).unsqueeze(0), mode='bilinear', padding_mode='zeros', align_corners=True).squeeze(0)
+# end
+
+def compute_photometric_consistency(I0, I1, F0to1):
+    """计算光度一致性 ψ_photo"""
+    warped_I1 = backwarp(I1, F0to1)
+    diff = I0 - warped_I1
+    psi_photo = torch.sqrt(diff[0]**2+diff[1]**2+diff[2]**2)
+    return psi_photo
+
+def compute_flow_consistency(F0to1, F1to0):
+    """计算光流一致性 ψ_flow"""
+    # 反向映射光流 F1to0
+    warped_F1to0 = backwarp(F1to0, F0to1)
+    # 计算一致性
+    diff = F0to1 - warped_F1to0
+    psi_flow = torch.sqrt(diff[0]**2+diff[1]**2)
+    return psi_flow
+
+def compute_flow_variance(F0to1):
+    """计算光流方差 ψ_varia"""
+    F_squared = F0to1 ** 2
+    G_F_squared = gaussian_filter(F_squared, sigma=1)
+    
+    G_F = gaussian_filter(F0to1, sigma=1)
+    
+    variance = torch.from_numpy(G_F_squared - (G_F ** 2))
+    
+    psi_varia = torch.sqrt(variance[0]+variance[1])
+    return psi_varia
+
 def get_new_name(filepath, idx_diff):
     # 正则表达式匹配文件名中的编号部分
     filename = os.path.basename(filepath)
@@ -92,21 +133,28 @@ class DSEC(Dataset):
     
     def __getitem__(self, index: int) -> Tuple[Tensor, Tensor]:
         # 50%的概率inverse
-        reverse_flag = False
-        if random.random() < 0.5:
-            lbl_path = str(self.files[index])
-            event_path = get_new_name(lbl_path, idx_diff=-1).replace('/gtFine_next', '/startF1_img_event_50ms/event_20').replace('_gtFine_labelTrainIds11.png', '.npy')
-            rgb = event_path.replace('/startF1_img_event_50ms/event_20', '/leftImg8bit').replace('.npy', '.png')
-            flow = rgb.replace('/leftImg8bit', '/flow').replace('.png', '.npy')
-            rgb_ref = lbl_path.replace('/gtFine_next', '/leftImg8bit_next').replace('_gtFine_labelTrainIds11.png', '.png')
-        else:
-            reverse_flag = True
-            lbl_path_next = str(self.files[index])
-            lbl_path = get_new_name(lbl_path_next, idx_diff=-1).replace('/gtFine_next', '/gtFine_cur')
-            event_path = lbl_path.replace('/gtFine_cur', '/startF1_img_event_50ms/event_20').replace('_gtFine_labelTrainIds11.png', '.npy')
-            rgb = lbl_path_next.replace('/gtFine_next', '/leftImg8bit_next').replace('_gtFine_labelTrainIds11.png', '.png')
-            flow = rgb.replace('/leftImg8bit_next', '/flow_reverse').replace('.png', '.npy')
-            rgb_ref = lbl_path.replace('/gtFine_cur', '/leftImg8bit').replace('_gtFine_labelTrainIds11.png', '.png')
+        # reverse_flag = False
+        # if random.random() < 0.5:
+        #     lbl_path = str(self.files[index])
+        #     event_path = get_new_name(lbl_path, idx_diff=-1).replace('/gtFine_next', '/startF1_img_event_50ms/event_20').replace('_gtFine_labelTrainIds11.png', '.npy')
+        #     rgb = event_path.replace('/startF1_img_event_50ms/event_20', '/leftImg8bit').replace('.npy', '.png')
+        #     flow = rgb.replace('/leftImg8bit', '/flow').replace('.png', '.npy')
+        #     rgb_ref = lbl_path.replace('/gtFine_next', '/leftImg8bit_next').replace('_gtFine_labelTrainIds11.png', '.png')
+        # else:
+        #     reverse_flag = True
+        #     lbl_path_next = str(self.files[index])
+        #     lbl_path = get_new_name(lbl_path_next, idx_diff=-1).replace('/gtFine_next', '/gtFine_cur')
+        #     event_path = lbl_path.replace('/gtFine_cur', '/startF1_img_event_50ms/event_20').replace('_gtFine_labelTrainIds11.png', '.npy')
+        #     rgb = lbl_path_next.replace('/gtFine_next', '/leftImg8bit_next').replace('_gtFine_labelTrainIds11.png', '.png')
+        #     flow = rgb.replace('/leftImg8bit_next', '/flow_reverse').replace('.png', '.npy')
+        #     rgb_ref = lbl_path.replace('/gtFine_cur', '/leftImg8bit').replace('_gtFine_labelTrainIds11.png', '.png')
+        lbl_path = str(self.files[index])
+        event_path = get_new_name(lbl_path, idx_diff=-1).replace('/gtFine_next', '/startF1_img_event_50ms/event_20').replace('_gtFine_labelTrainIds11.png', '.npy')
+        rgb = event_path.replace('/startF1_img_event_50ms/event_20', '/leftImg8bit').replace('.npy', '.png')
+        flow = rgb.replace('/leftImg8bit', '/flow').replace('.png', '.npy')
+        rgb_ref = lbl_path.replace('/gtFine_next', '/leftImg8bit_next').replace('_gtFine_labelTrainIds11.png', '.png')
+        flow_inverse = rgb_ref.replace('/leftImg8bit_next', '/flow_reverse').replace('.png', '.npy')
+
         if self.n_classes == 12:
             lbl_path = lbl_path.replace('_gtFine_labelTrainIds11.png', '_gtFine_labelTrainIds12.png')
         elif self.n_classes == 19:
@@ -124,14 +172,15 @@ class DSEC(Dataset):
         sample['mask'] = label[:, :440]
         event_voxel = np.load(event_path, allow_pickle=True)
         event_voxel = torch.from_numpy(event_voxel[:, :440])
-        if reverse_flag:
-            event_voxel = torch.flip(event_voxel, dims=[0])
         event_voxel = torch.cat([event_voxel[4*i:4*(i+1)].mean(0).unsqueeze(0) for i in range(5)], dim=0)
         sample['event'] = event_voxel
         flow = np.load(flow, allow_pickle=True)
+        flow_inverse = np.load(flow_inverse, allow_pickle=True)
         # print(flow.shape)   # 2 440 640
         # exit(0)
         sample['flow'] = torch.from_numpy(flow[:, :440])
+        sample['flow_inverse'] = torch.from_numpy(flow_inverse[:, :440])
+
         if self.transform:
             sample = self.transform(sample)
         label = sample['mask']
@@ -143,11 +192,22 @@ class DSEC(Dataset):
         del sample['event']
         flow = sample['flow']
         del sample['flow']
+        flow_inverse = sample['flow_inverse']
+        del sample['flow_inverse']
+
+        # 计算各个度量
+        psi_photo = compute_photometric_consistency(sample['img'], img_next, flow)
+        psi_flow = compute_flow_consistency(flow, flow_inverse)
+        psi_varia = compute_flow_variance(flow)
+        # 把这三个向量存成一个npy
+        psi = torch.stack([psi_photo, psi_flow, psi_varia], dim=0)
+        # np.save(event_path.replace('/startF1_img_event_50ms/event_20', '/psi'), psi)
 
         sample = [sample[k] for k in self.modals]
         sample.append(event_voxel)
         sample.append(img_next)
         sample.append(flow)
+        sample.append(psi)
         return seq_name, seq_idx, sample, label
 
     def _open_img(self, file):

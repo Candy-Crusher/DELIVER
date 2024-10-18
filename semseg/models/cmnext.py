@@ -11,7 +11,7 @@ from semseg.models.modules.flow_network.FRMA.modified_frma import EventFlowEstim
 from semseg.models.modules.flow_network.FRMA.model import flow_network
 from semseg.models.modules.flow_network.FRMA.config import Config
 from semseg.models.modules.softsplat.frame_synthesis import *
-from semseg.losses import calc_photometric_loss, reduce_photometric_loss
+from semseg.losses import calc_photometric_loss, reduce_photometric_loss, LapLoss, VGGLoss
 from fvcore.nn import flop_count_table, FlopCountAnalysis
 import matplotlib.pyplot as plt
 
@@ -30,7 +30,7 @@ class CMNeXt(BaseModel):
         # )
         self.apply(self._init_weights)
 
-    def forward(self, x: list, event_voxel: Tensor=None, rgb_next: Tensor=None, flow: Tensor=None) -> list:
+    def forward(self, x: list, event_voxel: Tensor=None, rgb_next: Tensor=None, flow: Tensor=None, psi: Tensor=None) -> list:
         ## backbone
         # feature_before, event_feature_before = self.backbone(x, [event_voxel])
         feature_before = self.backbone(x)
@@ -45,7 +45,8 @@ class CMNeXt(BaseModel):
         # # flow = torch.zeros(B, 2, H, W).to(x[0].device)
         # # 可视化特征和光流
         # # 可视化feature在四个子图里
-        feature_after, interFlow = self.softsplat_net(feature_before, flow, event_voxel)
+
+        feature_after, interFlow = self.softsplat_net(feature_before, flow, event_voxel, psi=psi)
         # # if residual
         # for i, fea in enumerate(feature_before):
         #     feature_after[i] = feature_after[i] + fea
@@ -66,13 +67,20 @@ class CMNeXt(BaseModel):
         # exit(0)  
         ## 计算监督损失
         # loss_fn = nn.MSELoss()
-        # feature_loss = sum(loss_fn(f, fn) for f, fn in zip(feature_after, feature_next))
-        photometric_losses = [calc_photometric_loss(f, fn) for f, fn in zip(feature_after, feature_next)]
-        feature_loss = reduce_photometric_loss(photometric_losses)
+        # loss_fn = LapLoss()
+        loss_fn = VGGLoss()
+        feature_loss = sum(loss_fn(f, fn) for f, fn in zip(feature_after, feature_next))
+        # photometric_losses = [calc_photometric_loss(f, fn) for f, fn in zip(feature_after, feature_next)]
+        # feature_loss = reduce_photometric_loss(photometric_losses)
+        # feature_loss = loss_fn(feature_after, feature_next)
       ## decoder
         y = self.decode_head(feature_after)
         y = F.interpolate(y, size=x[0].shape[2:], mode='bilinear', align_corners=False)
-        return y, feature_loss
+        y_ref = self.decode_head(feature_next)
+        y_ref = F.interpolate(y_ref, size=x[0].shape[2:], mode='bilinear', align_corners=False)
+        # L2 loss
+        consistent_loss = torch.nn.functional.l2_loss(y, y_ref)
+        return y, feature_loss, consistent_loss
     
     def visualize_features(self, features, axes, title_prefix):
         for i, feature in enumerate(features):

@@ -37,12 +37,12 @@ LOSS:
 
 OPTIMIZER:
   NAME          : adamw           # optimizer name
-  LR            : 0.00006         # initial learning rate used in optimizer
-  WEIGHT_DECAY  : 0.01            # decay rate used in optimizer
+  LR            : 0.00008         # initial learning rate used in optimizer
+  WEIGHT_DECAY  : 0.005            # decay rate used in optimizer
 
 SCHEDULER:
   NAME          : warmuppolylr    # scheduler name
-  POWER         : 0.9             # scheduler power
+  POWER         : 0.95             # scheduler power
   WARMUP        : 10              # warmup epochs used in scheduler
   WARMUP_RATIO  : 0.1             # warmup ratio
   
