@@ -24,7 +24,7 @@ DATASET:
 
 TRAIN:
   IMAGE_SIZE    : [440, 640]    # training image size in (h, w)
-  BATCH_SIZE    : 6               # batch size used to train
+  BATCH_SIZE    : 12               # batch size used to train
   EPOCHS        : 400             # number of epochs to train
   EVAL_START    : 50             # evaluation interval start
   EVAL_INTERVAL : 1               # evaluation interval during training
@@ -37,7 +37,7 @@ LOSS:
 
 OPTIMIZER:
   NAME          : adamw           # optimizer name
-  LR            : 0.00008         # initial learning rate used in optimizer
+  LR            : 0.0001         # initial learning rate used in optimizer
   WEIGHT_DECAY  : 0.005            # decay rate used in optimizer
 
 SCHEDULER:

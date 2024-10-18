@@ -120,7 +120,7 @@ class Synthesis(torch.nn.Module):
                     self.add_module('1x' + str(intCol) + ' - ' + '0x' + str(intCol), Upsample([32, 16, 16]))
                 # end
 
-                self.netOutput = Basic('conv-relu-conv', [16, 16, 2], True)
+                self.netOutput = Basic('conv-relu-conv', [16, 16, 1], True)
             # end
 
             def forward(self, event_voxel, tenFlow):
@@ -151,63 +151,27 @@ class Synthesis(torch.nn.Module):
             # end
         # end
 
-        class Warp(torch.nn.Module):
-            def __init__(self, embed_dim):
-                super().__init__()
-                self.nets = nn.ModuleList([
-                    Basic('conv-relu-conv', [embed_dim[i], embed_dim[i], embed_dim[i]], True)
-                    for i in range(len(embed_dim))
-                ])
-            # end
-
-            def forward(self, tenEncone, tenMetricone_splat, tenMetricone_merge, tenForward, tenEncone_event):
-            # def forward(self, tenEncone, tenMetricone, tenForward, tenEncone_event):
-                tenOutput = []
-                
-                # Ft_0 = softsplat(tenIn=torch.cat([tenMetricone_merge, -tenForward], 1), tenFlow=tenForward, tenMetric=tenMetricone_splat, strMode='soft')
-                Ft_0 = softsplat(tenIn=-tenForward, tenFlow=tenForward, tenMetric=tenMetricone_splat, strMode='soft')
-
-                for intLevel in range(len(tenEncone)):
-                    Ft_0 = torch.nn.functional.interpolate(input=Ft_0, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
-                    # M_splat = torch.nn.functional.interpolate(input=tenMetricone_splat, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
-                    tenWarp = backwarp(tenIn=tenEncone[intLevel], tenFlow=Ft_0)
-                    # tenWarp = backwarp(tenIn=torch.cat([tenEncone[intLevel], M_splat], 1), tenFlow=Ft_0)
-                    tenOutput.append(self.nets[intLevel](
-                        # torch.cat([tenEncone[intLevel], tenEncone_event[intLevel], tenWarp], 1)
-                        # torch.cat([tenEncone[intLevel], tenWarp], 1)
-                        tenWarp
-                        # tenWarp+tenIn
-                        # tenWarp + tenEncone[intLevel]
-                        # tenWarp + tenEncone_event[intLevel]
-                        # tenWarp + tenEncone[intLevel] + tenEncone_event[intLevel]
-                    ))
-                # end
-
-                return tenOutput, None
-            # end
-        # end
-
         # class Warp(torch.nn.Module):
         #     def __init__(self, embed_dim):
         #         super().__init__()
         #         self.nets = nn.ModuleList([
-        #             Basic('conv-relu-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
+        #             Basic('conv-relu-conv', [embed_dim[i], embed_dim[i], embed_dim[i]], True)
         #             for i in range(len(embed_dim))
         #         ])
         #     # end
 
-        #     def forward(self, tenEncone, tenMetricone, tenForward, tenEncone_event):
+        #     def forward(self, tenEncone, tenMetricone_splat, tenMetricone_merge, tenForward, tenEncone_event):
+        #     # def forward(self, tenEncone, tenMetricone, tenForward, tenEncone_event):
         #         tenOutput = []
-        #         tenFlow = []
+                
+        #         # Ft_0 = softsplat(tenIn=torch.cat([tenMetricone_merge, -tenForward], 1), tenFlow=tenForward, tenMetric=tenMetricone_splat, strMode='soft')
+        #         Ft_0 = softsplat(tenIn=-tenForward, tenFlow=tenForward, tenMetric=tenMetricone_splat, strMode='soft')
 
         #         for intLevel in range(len(tenEncone)):
-        #             tenMetricone = torch.nn.functional.interpolate(input=tenMetricone, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
-                    
-        #             tenForward = torch.nn.functional.interpolate(input=tenForward, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False) * (float(tenEncone[intLevel].shape[3]) / float(tenForward.shape[3]))
-        #             tenFlow.append(tenForward)
-        #             tenIn=torch.cat([tenEncone[intLevel], tenMetricone], 1)
-        #             # tenIn = tenEncone[intLevel]
-        #             tenWarp = softsplat(tenIn=tenIn, tenFlow=tenForward, tenMetric=tenMetricone, strMode='soft')
+        #             Ft_0 = torch.nn.functional.interpolate(input=Ft_0, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
+        #             # M_splat = torch.nn.functional.interpolate(input=tenMetricone_splat, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
+        #             tenWarp = backwarp(tenIn=tenEncone[intLevel], tenFlow=Ft_0)
+        #             # tenWarp = backwarp(tenIn=torch.cat([tenEncone[intLevel], M_splat], 1), tenFlow=Ft_0)
         #             tenOutput.append(self.nets[intLevel](
         #                 # torch.cat([tenEncone[intLevel], tenEncone_event[intLevel], tenWarp], 1)
         #                 # torch.cat([tenEncone[intLevel], tenWarp], 1)
@@ -219,9 +183,45 @@ class Synthesis(torch.nn.Module):
         #             ))
         #         # end
 
-        #         return tenOutput, tenFlow
+        #         return tenOutput, None
         #     # end
         # # end
+
+        class Warp(torch.nn.Module):
+            def __init__(self, embed_dim):
+                super().__init__()
+                self.nets = nn.ModuleList([
+                    Basic('conv-relu-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
+                    for i in range(len(embed_dim))
+                ])
+            # end
+
+            def forward(self, tenEncone, tenMetricone, tenForward):
+                tenOutput = []
+                tenFlow = []
+
+                for intLevel in range(len(tenEncone)):
+                    tenMetricone = torch.nn.functional.interpolate(input=tenMetricone, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
+                    
+                    tenForward = torch.nn.functional.interpolate(input=tenForward, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False) * (float(tenEncone[intLevel].shape[3]) / float(tenForward.shape[3]))
+                    tenFlow.append(tenForward)
+                    tenIn=torch.cat([tenEncone[intLevel], tenMetricone], 1)
+                    # tenIn = tenEncone[intLevel]
+                    tenWarp = softsplat(tenIn=tenIn, tenFlow=tenForward, tenMetric=tenMetricone, strMode='soft')
+                    tenOutput.append(self.nets[intLevel](
+                        # torch.cat([tenEncone[intLevel], tenEncone_event[intLevel], tenWarp], 1)
+                        # torch.cat([tenEncone[intLevel], tenWarp], 1)
+                        tenWarp
+                        # tenWarp+tenIn
+                        # tenWarp + tenEncone[intLevel]
+                        # tenWarp + tenEncone_event[intLevel]
+                        # tenWarp + tenEncone[intLevel] + tenEncone_event[intLevel]
+                    ))
+                # end
+
+                return tenOutput, tenFlow
+            # end
+        # end
 
         self.netSoftmetric = Softmetric()
 
@@ -238,11 +238,12 @@ class Synthesis(torch.nn.Module):
         # self.alpha_m_v = nn.Parameter(torch.tensor(1.0))
 
 
-    def forward(self, tenEncone, tenForward, event_voxel, tenEncone_event=None, psi=None):
+    def forward(self, tenEncone, event_voxel, tenForward):
+    # def forward(self, tenEncone, tenForward, event_voxel, tenEncone_event=None, psi=None):
         # tenMetricone = torch.sqrt(torch.square(tenForward[:, 0, :, :] + tenForward[:, 1, :, :])).unsqueeze(1)
-        # tenWarp, tenFlow = self.netWarp(tenEncone, tenMetricone, tenForward, tenEncone_event)
-        # tenMetricone = self.netSoftmetric(event_voxel, tenForward) * 2.0
-        tenMetricone_splat, tenMetricone_merge = torch.chunk(self.netSoftmetric(event_voxel, tenForward) * 2.0, chunks=2, dim=1)
+        tenMetricone = self.netSoftmetric(event_voxel, tenForward) * 2.0
+        tenWarp, tenFlow = self.netWarp(tenEncone, tenMetricone, tenForward)
+        # tenMetricone_splat, tenMetricone_merge = torch.chunk(self.netSoftmetric(event_voxel, tenForward) * 2.0, chunks=2, dim=1)
 
         # # 计算各个度量
         # psi_photo = psi[:,0].unsqueeze(1)
@@ -259,7 +260,7 @@ class Synthesis(torch.nn.Module):
         #             (1 / (1 + (self.alpha_m_f * psi_flow))) + \
         #             (1 / (1 + (self.alpha_m_v * psi_varia)))
 
-        tenWarp, tenFlow = self.netWarp(tenEncone, tenMetricone_splat, tenMetricone_merge, tenForward, tenEncone_event)
+        # tenWarp, tenFlow = self.netWarp(tenEncone, tenMetricone_splat, tenMetricone_merge, tenForward, tenEncone_event)
 
         return tenWarp, tenFlow
 

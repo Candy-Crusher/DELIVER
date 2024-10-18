@@ -30,13 +30,14 @@ class CMNeXt(BaseModel):
         # )
         self.apply(self._init_weights)
 
-    def forward(self, x: list, event_voxel: Tensor=None, rgb_next: Tensor=None, flow: Tensor=None, psi: Tensor=None) -> list:
+    # def forward(self, x: list, event_voxel: Tensor=None, rgb_next: Tensor=None, flow: Tensor=None, psi: Tensor=None) -> list:
+    def forward(self, x: list, event_voxel: Tensor=None, rgb_next: Tensor=None, flow: Tensor=None) -> list:
         ## backbone
         # feature_before, event_feature_before = self.backbone(x, [event_voxel])
         feature_before = self.backbone(x)
-        feature_next = self.backbone([rgb_next])
+        # feature_next = self.backbone([rgb_next])
         
-        feature_loss = 0
+        # feature_loss = 0
         # # flownet
         # # timelens unet + softsplat
         # # event_voxel = event_voxel.unfold(1, 4, 4).permute(0, 4, 1, 2, 3)
@@ -46,7 +47,9 @@ class CMNeXt(BaseModel):
         # # 可视化特征和光流
         # # 可视化feature在四个子图里
 
-        feature_after, interFlow = self.softsplat_net(feature_before, flow, event_voxel, psi=psi)
+        feature_after, interFlow = self.softsplat_net(feature_before, event_voxel, flow)
+        # feature_after = feature_before
+        # feature_after, interFlow = self.softsplat_net(feature_before, flow, event_voxel, psi=psi)
         # # if residual
         # for i, fea in enumerate(feature_before):
         #     feature_after[i] = feature_after[i] + fea
@@ -74,14 +77,16 @@ class CMNeXt(BaseModel):
         # feature_loss = reduce_photometric_loss(photometric_losses)
         # feature_loss = loss_fn(feature_after, feature_next)
       ## decoder
+
         y = self.decode_head(feature_after)
         y = F.interpolate(y, size=x[0].shape[2:], mode='bilinear', align_corners=False)
-        consistent_loss = 0
+        # consistent_loss = 0
         # y_ref = self.decode_head(feature_next)
         # y_ref = F.interpolate(y_ref, size=x[0].shape[2:], mode='bilinear', align_corners=False)
         # # L2 loss
         # consistent_loss = F.mse_loss(y, y_ref)
-        return y, feature_loss, consistent_loss
+        # return y, feature_loss, consistent_loss
+        return y
     
     def visualize_features(self, features, axes, title_prefix):
         for i, feature in enumerate(features):

@@ -149,11 +149,12 @@ class DSEC(Dataset):
         #     flow = rgb.replace('/leftImg8bit_next', '/flow_reverse').replace('.png', '.npy')
         #     rgb_ref = lbl_path.replace('/gtFine_cur', '/leftImg8bit').replace('_gtFine_labelTrainIds11.png', '.png')
         lbl_path = str(self.files[index])
+        # lbl_path_ref = get_new_name(lbl_path, idx_diff=-1).replace('/gtFine_next', '/gtFine_cur')
         event_path = get_new_name(lbl_path, idx_diff=-1).replace('/gtFine_next', '/startF1_img_event_50ms/event_20').replace('_gtFine_labelTrainIds11.png', '.npy')
         rgb = event_path.replace('/startF1_img_event_50ms/event_20', '/leftImg8bit').replace('.npy', '.png')
         flow = rgb.replace('/leftImg8bit', '/flow').replace('.png', '.npy')
         rgb_ref = lbl_path.replace('/gtFine_next', '/leftImg8bit_next').replace('_gtFine_labelTrainIds11.png', '.png')
-        flow_inverse = rgb_ref.replace('/leftImg8bit_next', '/flow_reverse').replace('.png', '.npy')
+        # flow_inverse = rgb_ref.replace('/leftImg8bit_next', '/flow_reverse').replace('.png', '.npy')
 
         if self.n_classes == 12:
             lbl_path = lbl_path.replace('_gtFine_labelTrainIds11.png', '_gtFine_labelTrainIds12.png')
@@ -166,48 +167,54 @@ class DSEC(Dataset):
 
         sample = {}
         sample['img'] = io.read_image(rgb)[:3, ...][:, :440]
-        H, W = sample['img'].shape[1:]
+        # H, W = sample['img'].shape[1:]
         sample['img_next'] = io.read_image(rgb_ref)[:3, ...][:, :440]
         label = io.read_image(lbl_path)[0,...].unsqueeze(0)
+        # label_ref = io.read_image(lbl_path_ref)[0,...].unsqueeze(0)
         sample['mask'] = label[:, :440]
+        # sample['mask_ref'] = label_ref[:, :440]
         event_voxel = np.load(event_path, allow_pickle=True)
         event_voxel = torch.from_numpy(event_voxel[:, :440])
         event_voxel = torch.cat([event_voxel[4*i:4*(i+1)].mean(0).unsqueeze(0) for i in range(5)], dim=0)
         sample['event'] = event_voxel
         flow = np.load(flow, allow_pickle=True)
-        flow_inverse = np.load(flow_inverse, allow_pickle=True)
-        # print(flow.shape)   # 2 440 640
-        # exit(0)
+        # flow_inverse = np.load(flow_inverse, allow_pickle=True)
+        # # print(flow.shape)   # 2 440 640
+        # # exit(0)
         sample['flow'] = torch.from_numpy(flow[:, :440])
-        sample['flow_inverse'] = torch.from_numpy(flow_inverse[:, :440])
+        # sample['flow_inverse'] = torch.from_numpy(flow_inverse[:, :440])
 
         if self.transform:
             sample = self.transform(sample)
         label = sample['mask']
         del sample['mask']
         label = self.encode(label.squeeze().numpy()).long()
-        img_next = sample['img_next']
-        del sample['img_next']
+        # label_ref = sample['mask_ref']
+        # del sample['mask_ref']
+        # label_ref = self.encode(label_ref.squeeze().numpy()).long()
         event_voxel = sample['event']
         del sample['event']
+        img_next = sample['img_next']
+        del sample['img_next']
         flow = sample['flow']
         del sample['flow']
-        flow_inverse = sample['flow_inverse']
-        del sample['flow_inverse']
+        # flow_inverse = sample['flow_inverse']
+        # del sample['flow_inverse']
 
-        # 计算各个度量
-        psi_photo = compute_photometric_consistency(sample['img'], img_next, flow)
-        psi_flow = compute_flow_consistency(flow, flow_inverse)
-        psi_varia = compute_flow_variance(flow)
-        # 把这三个向量存成一个npy
-        psi = torch.stack([psi_photo, psi_flow, psi_varia], dim=0)
-        # np.save(event_path.replace('/startF1_img_event_50ms/event_20', '/psi'), psi)
+        # # 计算各个度量
+        # psi_photo = compute_photometric_consistency(sample['img'], img_next, flow)
+        # psi_flow = compute_flow_consistency(flow, flow_inverse)
+        # psi_varia = compute_flow_variance(flow)
+        # # 把这三个向量存成一个npy
+        # psi = torch.stack([psi_photo, psi_flow, psi_varia], dim=0)
+        # # np.save(event_path.replace('/startF1_img_event_50ms/event_20', '/psi'), psi)
 
         sample = [sample[k] for k in self.modals]
         sample.append(event_voxel)
         sample.append(img_next)
         sample.append(flow)
-        sample.append(psi)
+        # sample.append(label_ref)
+        # sample.append(psi)
         return seq_name, seq_idx, sample, label
 
     def _open_img(self, file):

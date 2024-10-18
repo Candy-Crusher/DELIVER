@@ -76,13 +76,22 @@ def evaluate(model, dataloader, device, save_dir=None, palette=None):
         event_voxel = images[1]
         rgb_next = images[2]
         flow = images[3]
-        psi = images[4]
+        # label_ref = images[3]
+        # psi = images[4]
         images = [images[0]]
         if sliding:
             preds = sliding_predict(model, images, num_classes=n_classes).softmax(dim=1)
         else:
-            preds, _ , _ = model(images, event_voxel, rgb_next, flow, psi)
-            preds = preds.softmax(dim=1)
+            # preds, _ , _ = model(images, event_voxel, rgb_next, flow, psi)
+            preds = model(images, event_voxel, rgb_next, flow)
+            # preds = preds.softmax(dim=1)
+            # preds = label_ref
+            # print(preds.shape)
+            # print
+            # # H W转化为 19 H W
+            # preds = F.one_hot(preds, n_classes).permute(0, 3, 1, 2).float()
+            # print(preds.shape)
+
 
         # 保存图像
         if save_dir is not None:
@@ -93,11 +102,14 @@ def evaluate(model, dataloader, device, save_dir=None, palette=None):
                     os.makedirs(save_path)
                 pred_argmax = preds[i].argmax(dim=0).cpu().numpy().astype(np.uint8)
                 rgb_image = palette[pred_argmax]
+                rgb_lbl = palette[labels[i].cpu().numpy().astype(np.uint8)]
                 # 将numpy数组转换为PIL图像
                 pred_argmax = Image.fromarray(pred_argmax)
                 rgb_image = Image.fromarray(rgb_image.astype(np.uint8))
+                rgb_lbl = Image.fromarray(rgb_lbl.astype(np.uint8))
                 rgb_image.save(save_path / idx)
                 pred_argmax.save(save_path / idx.replace('.png', '_labelTrainIds11.png'))
+                rgb_lbl.save(save_path / idx.replace('.png', '_labelTrainIds11_gt.png'))
         metrics.update(preds, labels)
     ious, miou = metrics.compute_iou()
     acc, macc = metrics.compute_pixel_acc()
