@@ -164,11 +164,14 @@ class Synthesis(torch.nn.Module):
             # def forward(self, tenEncone, tenMetricone, tenForward, tenEncone_event):
                 tenOutput = []
                 
-                Ft_0 = softsplat(tenIn=torch.cat([tenMetricone_merge, -tenForward], 1), tenFlow=tenForward, tenMetric=tenMetricone_splat, strMode='soft')
+                # Ft_0 = softsplat(tenIn=torch.cat([tenMetricone_merge, -tenForward], 1), tenFlow=tenForward, tenMetric=tenMetricone_splat, strMode='soft')
+                Ft_0 = softsplat(tenIn=-tenForward, tenFlow=tenForward, tenMetric=tenMetricone_splat, strMode='soft')
 
                 for intLevel in range(len(tenEncone)):
                     Ft_0 = torch.nn.functional.interpolate(input=Ft_0, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
+                    # M_splat = torch.nn.functional.interpolate(input=tenMetricone_splat, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
                     tenWarp = backwarp(tenIn=tenEncone[intLevel], tenFlow=Ft_0)
+                    # tenWarp = backwarp(tenIn=torch.cat([tenEncone[intLevel], M_splat], 1), tenFlow=Ft_0)
                     tenOutput.append(self.nets[intLevel](
                         # torch.cat([tenEncone[intLevel], tenEncone_event[intLevel], tenWarp], 1)
                         # torch.cat([tenEncone[intLevel], tenWarp], 1)

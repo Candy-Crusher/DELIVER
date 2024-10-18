@@ -68,18 +68,19 @@ class CMNeXt(BaseModel):
         ## 计算监督损失
         # loss_fn = nn.MSELoss()
         # loss_fn = LapLoss()
-        loss_fn = VGGLoss()
-        feature_loss = sum(loss_fn(f, fn) for f, fn in zip(feature_after, feature_next))
+        # loss_fn = VGGLoss()
+        # feature_loss = sum(loss_fn(f, fn) for f, fn in zip(feature_after, feature_next))
         # photometric_losses = [calc_photometric_loss(f, fn) for f, fn in zip(feature_after, feature_next)]
         # feature_loss = reduce_photometric_loss(photometric_losses)
         # feature_loss = loss_fn(feature_after, feature_next)
       ## decoder
         y = self.decode_head(feature_after)
         y = F.interpolate(y, size=x[0].shape[2:], mode='bilinear', align_corners=False)
-        y_ref = self.decode_head(feature_next)
-        y_ref = F.interpolate(y_ref, size=x[0].shape[2:], mode='bilinear', align_corners=False)
-        # L2 loss
-        consistent_loss = torch.nn.functional.l2_loss(y, y_ref)
+        consistent_loss = 0
+        # y_ref = self.decode_head(feature_next)
+        # y_ref = F.interpolate(y_ref, size=x[0].shape[2:], mode='bilinear', align_corners=False)
+        # # L2 loss
+        # consistent_loss = F.mse_loss(y, y_ref)
         return y, feature_loss, consistent_loss
     
     def visualize_features(self, features, axes, title_prefix):
