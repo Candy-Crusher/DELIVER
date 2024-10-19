@@ -55,6 +55,24 @@ class Synthesis(torch.nn.Module):
                         torch.nn.PReLU(num_parameters=intChannels[1], init=0.25),
                         torch.nn.Conv2d(in_channels=intChannels[1], out_channels=intChannels[2], kernel_size=3, stride=1, padding=1, bias=False)
                     )
+                elif strType == 'more-more-more-conv':
+                    self.netMain = torch.nn.Sequential(
+                        torch.nn.Conv2d(in_channels=intChannels[0], out_channels=intChannels[1], kernel_size=3, stride=1, padding=1, bias=False),
+                        torch.nn.PReLU(num_parameters=intChannels[1], init=0.25),
+                        torch.nn.Conv2d(in_channels=intChannels[1], out_channels=intChannels[1]//2, kernel_size=3, stride=1, padding=1, bias=False),
+                        torch.nn.PReLU(num_parameters=intChannels[1]//2, init=0.25),
+                        torch.nn.Conv2d(in_channels=intChannels[1]//2, out_channels=intChannels[1]//4, kernel_size=3, stride=1, padding=1, bias=False),
+                        torch.nn.PReLU(num_parameters=intChannels[1]//4, init=0.25),
+                        torch.nn.Conv2d(in_channels=intChannels[1]//4, out_channels=intChannels[1]//8, kernel_size=3, stride=1, padding=1, bias=False),
+                        torch.nn.PReLU(num_parameters=intChannels[1]//8, init=0.25),
+                        torch.nn.Conv2d(in_channels=intChannels[1]//8, out_channels=intChannels[1]//4, kernel_size=3, stride=1, padding=1, bias=False),
+                        torch.nn.PReLU(num_parameters=intChannels[1]//4, init=0.25),
+                        torch.nn.Conv2d(in_channels=intChannels[1]//4, out_channels=intChannels[1]//2, kernel_size=3, stride=1, padding=1, bias=False),
+                        torch.nn.PReLU(num_parameters=intChannels[1]//2, init=0.25),
+                        torch.nn.Conv2d(in_channels=intChannels[1]//2, out_channels=intChannels[1], kernel_size=3, stride=1, padding=1, bias=False),
+                        torch.nn.PReLU(num_parameters=intChannels[1], init=0.25),
+                        torch.nn.Conv2d(in_channels=intChannels[1], out_channels=intChannels[2], kernel_size=3, stride=1, padding=1, bias=False)
+                    )
                 # end
 
                 self.boolSkip = boolSkip
@@ -124,8 +142,8 @@ class Synthesis(torch.nn.Module):
             def __init__(self):
                 super().__init__()
 
-                self.netEventInput = torch.nn.Conv2d(in_channels=3, out_channels=8, kernel_size=3, stride=1, padding=1, bias=False)
-                # self.netEventInput = torch.nn.Conv2d(in_channels=5, out_channels=8, kernel_size=3, stride=1, padding=1, bias=False)
+                # self.netEventInput = torch.nn.Conv2d(in_channels=3, out_channels=8, kernel_size=3, stride=1, padding=1, bias=False)
+                self.netEventInput = torch.nn.Conv2d(in_channels=5, out_channels=8, kernel_size=3, stride=1, padding=1, bias=False)
                 # self.netRGBInput = torch.nn.Conv2d(in_channels=3, out_channels=4, kernel_size=3, stride=1, padding=1, bias=False)
                 self.netFlow = torch.nn.Conv2d(in_channels=2, out_channels=8, kernel_size=3, stride=1, padding=1, bias=False)
 
@@ -218,8 +236,9 @@ class Synthesis(torch.nn.Module):
                 super().__init__()
                 self.nets = nn.ModuleList([
                     # Basic('conv-relu-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
-                    Basic('more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
+                    # Basic('more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
                     # Basic('more-more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
+                    Basic('more-more-more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
                     for i in range(len(embed_dim))
                 ])
             # end
