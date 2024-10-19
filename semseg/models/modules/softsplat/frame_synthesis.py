@@ -31,7 +31,30 @@ class Synthesis(torch.nn.Module):
                         torch.nn.PReLU(num_parameters=intChannels[1], init=0.25),
                         torch.nn.Conv2d(in_channels=intChannels[1], out_channels=intChannels[2], kernel_size=3, stride=1, padding=1, bias=False)
                     )
-
+                elif strType == 'more-conv':
+                    self.netMain = torch.nn.Sequential(
+                        torch.nn.Conv2d(in_channels=intChannels[0], out_channels=intChannels[1], kernel_size=3, stride=1, padding=1, bias=False),
+                        torch.nn.PReLU(num_parameters=intChannels[1], init=0.25),
+                        torch.nn.Conv2d(in_channels=intChannels[1], out_channels=intChannels[1]//2, kernel_size=3, stride=1, padding=1, bias=False),
+                        torch.nn.PReLU(num_parameters=intChannels[1]//2, init=0.25),
+                        torch.nn.Conv2d(in_channels=intChannels[1]//2, out_channels=intChannels[1], kernel_size=3, stride=1, padding=1, bias=False),
+                        torch.nn.PReLU(num_parameters=intChannels[1], init=0.25),
+                        torch.nn.Conv2d(in_channels=intChannels[1], out_channels=intChannels[2], kernel_size=3, stride=1, padding=1, bias=False)
+                    )
+                elif strType == 'more-more-conv':
+                    self.netMain = torch.nn.Sequential(
+                        torch.nn.Conv2d(in_channels=intChannels[0], out_channels=intChannels[1], kernel_size=3, stride=1, padding=1, bias=False),
+                        torch.nn.PReLU(num_parameters=intChannels[1], init=0.25),
+                        torch.nn.Conv2d(in_channels=intChannels[1], out_channels=intChannels[1]//2, kernel_size=3, stride=1, padding=1, bias=False),
+                        torch.nn.PReLU(num_parameters=intChannels[1]//2, init=0.25),
+                        torch.nn.Conv2d(in_channels=intChannels[1]//2, out_channels=intChannels[1]//4, kernel_size=3, stride=1, padding=1, bias=False),
+                        torch.nn.PReLU(num_parameters=intChannels[1]//4, init=0.25),
+                        torch.nn.Conv2d(in_channels=intChannels[1]//4, out_channels=intChannels[1]//2, kernel_size=3, stride=1, padding=1, bias=False),
+                        torch.nn.PReLU(num_parameters=intChannels[1]//2, init=0.25),
+                        torch.nn.Conv2d(in_channels=intChannels[1]//2, out_channels=intChannels[1], kernel_size=3, stride=1, padding=1, bias=False),
+                        torch.nn.PReLU(num_parameters=intChannels[1], init=0.25),
+                        torch.nn.Conv2d(in_channels=intChannels[1], out_channels=intChannels[2], kernel_size=3, stride=1, padding=1, bias=False)
+                    )
                 # end
 
                 self.boolSkip = boolSkip
@@ -101,7 +124,8 @@ class Synthesis(torch.nn.Module):
             def __init__(self):
                 super().__init__()
 
-                self.netInput = torch.nn.Conv2d(in_channels=5, out_channels=8, kernel_size=3, stride=1, padding=1, bias=False)
+                self.netEventInput = torch.nn.Conv2d(in_channels=5, out_channels=8, kernel_size=3, stride=1, padding=1, bias=False)
+                # self.netRGBInput = torch.nn.Conv2d(in_channels=3, out_channels=4, kernel_size=3, stride=1, padding=1, bias=False)
                 self.netFlow = torch.nn.Conv2d(in_channels=2, out_channels=8, kernel_size=3, stride=1, padding=1, bias=False)
 
                 for intRow, intFeatures in [(0, 16), (1, 32), (2, 64), (3, 96)]:
@@ -127,7 +151,7 @@ class Synthesis(torch.nn.Module):
                 tenColumn = [None, None, None, None]
 
                 tenColumn[0] = torch.cat([
-                    self.netInput(event_voxel),
+                    self.netEventInput(event_voxel),
                     self.netFlow(tenFlow),
                 ], 1)
                 tenColumn[1] = self._modules['0x0 - 1x0'](tenColumn[0])
@@ -148,6 +172,7 @@ class Synthesis(torch.nn.Module):
                 # end
 
                 return self.netOutput(tenColumn[0])
+                # return torch.sigmoid(self.netOutput(tenColumn[0]))
             # end
         # end
 
@@ -191,7 +216,9 @@ class Synthesis(torch.nn.Module):
             def __init__(self, embed_dim):
                 super().__init__()
                 self.nets = nn.ModuleList([
-                    Basic('conv-relu-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
+                    # Basic('conv-relu-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
+                    # Basic('more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
+                    Basic('more-more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
                     for i in range(len(embed_dim))
                 ])
             # end
@@ -206,8 +233,14 @@ class Synthesis(torch.nn.Module):
                     tenForward = torch.nn.functional.interpolate(input=tenForward, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False) * (float(tenEncone[intLevel].shape[3]) / float(tenForward.shape[3]))
                     tenFlow.append(tenForward)
                     tenIn=torch.cat([tenEncone[intLevel], tenMetricone], 1)
+                    # tenMask = torch.ones_like(tenMetricone)
                     # tenIn = tenEncone[intLevel]
                     tenWarp = softsplat(tenIn=tenIn, tenFlow=tenForward, tenMetric=tenMetricone, strMode='soft')
+                    # tenMaskWarp = softsplat(tenIn=tenMask, tenFlow=tenForward, tenMetric=tenMetricone, strMode='soft')
+                    # tenMaskWarp = tenMaskWarp.expand(-1, tenIn.shape[1], -1, -1)
+                    # print(tenWarp.shape, tenMaskWarp.shape, tenIn.shape)
+                    # print((tenMaskWarp > 0).shape)
+                    # tenWarp = tenWarp[tenMaskWarp > 0] + tenIn[tenMaskWarp == 0]
                     tenOutput.append(self.nets[intLevel](
                         # torch.cat([tenEncone[intLevel], tenEncone_event[intLevel], tenWarp], 1)
                         # torch.cat([tenEncone[intLevel], tenWarp], 1)
@@ -241,6 +274,7 @@ class Synthesis(torch.nn.Module):
     def forward(self, tenEncone, event_voxel, tenForward):
     # def forward(self, tenEncone, tenForward, event_voxel, tenEncone_event=None, psi=None):
         # tenMetricone = torch.sqrt(torch.square(tenForward[:, 0, :, :] + tenForward[:, 1, :, :])).unsqueeze(1)
+        # tenMetricone = self.netSoftmetric(rgb, event_voxel, tenForward) * 2.0
         tenMetricone = self.netSoftmetric(event_voxel, tenForward) * 2.0
         tenWarp, tenFlow = self.netWarp(tenEncone, tenMetricone, tenForward)
         # tenMetricone_splat, tenMetricone_merge = torch.chunk(self.netSoftmetric(event_voxel, tenForward) * 2.0, chunks=2, dim=1)
