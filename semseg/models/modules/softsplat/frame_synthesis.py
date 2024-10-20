@@ -237,8 +237,8 @@ class Synthesis(torch.nn.Module):
                 self.nets = nn.ModuleList([
                     # Basic('conv-relu-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
                     # Basic('more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
-                    # Basic('more-more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
-                    Basic('more-more-more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
+                    Basic('more-more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
+                    # Basic('more-more-more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
                     for i in range(len(embed_dim))
                 ])
             # end
