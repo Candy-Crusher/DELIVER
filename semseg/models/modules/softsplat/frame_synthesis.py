@@ -161,7 +161,7 @@ class Synthesis(torch.nn.Module):
 
                 # self.netEventInput = torch.nn.Conv2d(in_channels=3, out_channels=8, kernel_size=3, stride=1, padding=1, bias=False)
                 self.netEventInput = torch.nn.Conv2d(in_channels=5, out_channels=8, kernel_size=3, stride=1, padding=1, bias=False)
-                # self.netRGBInput = torch.nn.Conv2d(in_channels=3, out_channels=4, kernel_size=3, stride=1, padding=1, bias=False)
+                self.netRGBInput = torch.nn.Conv2d(in_channels=3, out_channels=8, kernel_size=3, stride=1, padding=1, bias=False)
                 self.netFlow = torch.nn.Conv2d(in_channels=2, out_channels=8, kernel_size=3, stride=1, padding=1, bias=False)
 
                 for intRow, intFeatures in [(0, 16), (1, 32), (2, 64), (3, 96)]:
@@ -183,11 +183,13 @@ class Synthesis(torch.nn.Module):
                 self.netOutput = Basic('conv-relu-conv', [16, 16, 1], True)
             # end
 
-            def forward(self, event_voxel, tenFlow):
+            def forward(self, rgb, event_voxel, tenFlow):
                 tenColumn = [None, None, None, None]
 
                 tenColumn[0] = torch.cat([
-                    self.netEventInput(event_voxel),
+                    # self.netEventInput(event_voxel),
+                    # self.netRGBInput(rgb),
+                    self.netRGBInput(rgb)+self.netEventInput(event_voxel),
                     self.netFlow(tenFlow),
                 ], 1)
                 tenColumn[1] = self._modules['0x0 - 1x0'](tenColumn[0])
@@ -309,11 +311,11 @@ class Synthesis(torch.nn.Module):
         # self.alpha_m_v = nn.Parameter(torch.tensor(1.0))
 
 
-    def forward(self, tenEncone, event_voxel, tenForward):
+    def forward(self, tenEncone, rgb, event_voxel, tenForward):
     # def forward(self, tenEncone, tenForward, event_voxel, tenEncone_event=None, psi=None):
         # tenMetricone = torch.sqrt(torch.square(tenForward[:, 0, :, :] + tenForward[:, 1, :, :])).unsqueeze(1)
         # tenMetricone = self.netSoftmetric(rgb, event_voxel, tenForward) * 2.0
-        tenMetricone = self.netSoftmetric(event_voxel, tenForward) * 2.0
+        tenMetricone = self.netSoftmetric(rgb, event_voxel, tenForward) * 2.0
         tenWarp, tenFlow = self.netWarp(tenEncone, tenMetricone, tenForward)
         # tenMetricone_splat, tenMetricone_merge = torch.chunk(self.netSoftmetric(event_voxel, tenForward) * 2.0, chunks=2, dim=1)
 

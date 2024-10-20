@@ -48,7 +48,7 @@ class CMNeXt(BaseModel):
         # # 可视化feature在四个子图里
 
         # feature_after, interFlow = self.softsplat_net(feature_before, x[0], flow)
-        feature_after, interFlow = self.softsplat_net(feature_before, event_voxel, flow)
+        feature_after, interFlow = self.softsplat_net(feature_before, x[0], event_voxel, flow)
         # feature_after = feature_before
         # feature_after, interFlow = self.softsplat_net(feature_before, flow, event_voxel, psi=psi)
         # # if residual
