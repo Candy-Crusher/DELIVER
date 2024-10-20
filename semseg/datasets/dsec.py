@@ -123,7 +123,8 @@ class DSEC(Dataset):
         self.ignore_label = 255
         self.modals = modals
         # self.files = sorted(glob.glob(os.path.join(*[root, 'leftImg8bit', split, '*', '*.png'])))
-        self.files = sorted(glob.glob(os.path.join(*[root, 'gtFine_next', split, '*', '*_gtFine_labelTrainIds11.png'])))
+        # self.files = sorted(glob.glob(os.path.join(*[root, 'gtFine_next', split, '*', '*_gtFine_labelTrainIds11.png'])))
+        self.files = sorted(glob.glob(os.path.join(*[root, 'sample', split, '*', '*.npy'])))
         # --- debug
         # self.files = sorted(glob.glob(os.path.join(*[root, 'img', '*', split, '*', '*.png'])))[:100]
         print(f"Found {len(self.files)} {split} {case} images.")
@@ -132,65 +133,73 @@ class DSEC(Dataset):
         return len(self.files)
     
     def __getitem__(self, index: int) -> Tuple[Tensor, Tensor]:
-        # 50%的概率inverse
-        # reverse_flag = False
-        # if random.random() < 0.5:
-        #     lbl_path = str(self.files[index])
-        #     event_path = get_new_name(lbl_path, idx_diff=-1).replace('/gtFine_next', '/startF1_img_event_50ms/event_20').replace('_gtFine_labelTrainIds11.png', '.npy')
-        #     rgb = event_path.replace('/startF1_img_event_50ms/event_20', '/leftImg8bit').replace('.npy', '.png')
-        #     flow = rgb.replace('/leftImg8bit', '/flow').replace('.png', '.npy')
-        #     rgb_ref = lbl_path.replace('/gtFine_next', '/leftImg8bit_next').replace('_gtFine_labelTrainIds11.png', '.png')
-        # else:
-        #     reverse_flag = True
-        #     lbl_path_next = str(self.files[index])
-        #     lbl_path = get_new_name(lbl_path_next, idx_diff=-1).replace('/gtFine_next', '/gtFine_cur')
-        #     event_path = lbl_path.replace('/gtFine_cur', '/startF1_img_event_50ms/event_20').replace('_gtFine_labelTrainIds11.png', '.npy')
-        #     rgb = lbl_path_next.replace('/gtFine_next', '/leftImg8bit_next').replace('_gtFine_labelTrainIds11.png', '.png')
-        #     flow = rgb.replace('/leftImg8bit_next', '/flow_reverse').replace('.png', '.npy')
-        #     rgb_ref = lbl_path.replace('/gtFine_cur', '/leftImg8bit').replace('_gtFine_labelTrainIds11.png', '.png')
-        lbl_path = str(self.files[index])
+        # # 50%的概率inverse
+        # # reverse_flag = False
+        # # if random.random() < 0.5:
+        # #     lbl_path = str(self.files[index])
+        # #     event_path = get_new_name(lbl_path, idx_diff=-1).replace('/gtFine_next', '/startF1_img_event_50ms/event_20').replace('_gtFine_labelTrainIds11.png', '.npy')
+        # #     rgb = event_path.replace('/startF1_img_event_50ms/event_20', '/leftImg8bit').replace('.npy', '.png')
+        # #     flow = rgb.replace('/leftImg8bit', '/flow').replace('.png', '.npy')
+        # #     rgb_ref = lbl_path.replace('/gtFine_next', '/leftImg8bit_next').replace('_gtFine_labelTrainIds11.png', '.png')
+        # # else:
+        # #     reverse_flag = True
+        # #     lbl_path_next = str(self.files[index])
+        # #     lbl_path = get_new_name(lbl_path_next, idx_diff=-1).replace('/gtFine_next', '/gtFine_cur')
+        # #     event_path = lbl_path.replace('/gtFine_cur', '/startF1_img_event_50ms/event_20').replace('_gtFine_labelTrainIds11.png', '.npy')
+        # #     rgb = lbl_path_next.replace('/gtFine_next', '/leftImg8bit_next').replace('_gtFine_labelTrainIds11.png', '.png')
+        # #     flow = rgb.replace('/leftImg8bit_next', '/flow_reverse').replace('.png', '.npy')
+        # #     rgb_ref = lbl_path.replace('/gtFine_cur', '/leftImg8bit').replace('_gtFine_labelTrainIds11.png', '.png')
+        # lbl_path = str(self.files[index])
         # lbl_path_ref = get_new_name(lbl_path, idx_diff=-1).replace('/gtFine_next', '/gtFine_cur')
-        event_path = get_new_name(lbl_path, idx_diff=-1).replace('/gtFine_next', '/startF1_img_event_50ms/event_20').replace('_gtFine_labelTrainIds11.png', '.npy')
-        rgb = event_path.replace('/startF1_img_event_50ms/event_20', '/leftImg8bit').replace('.npy', '.png')
-        flow = rgb.replace('/leftImg8bit', '/flow').replace('.png', '.npy')
-        rgb_ref = lbl_path.replace('/gtFine_next', '/leftImg8bit_next').replace('_gtFine_labelTrainIds11.png', '.png')
+        # event_path = get_new_name(lbl_path, idx_diff=-1).replace('/gtFine_next', '/startF1_img_event_50ms/event_20').replace('_gtFine_labelTrainIds11.png', '.npy')
+        # rgb = event_path.replace('/startF1_img_event_50ms/event_20', '/leftImg8bit').replace('.npy', '.png')
+        # flow = rgb.replace('/leftImg8bit', '/flow').replace('.png', '.npy')
+        # rgb_ref = lbl_path.replace('/gtFine_next', '/leftImg8bit_next').replace('_gtFine_labelTrainIds11.png', '.png')
         # flow_inverse = rgb_ref.replace('/leftImg8bit_next', '/flow_reverse').replace('.png', '.npy')
 
-        if self.n_classes == 12:
-            lbl_path = lbl_path.replace('_gtFine_labelTrainIds11.png', '_gtFine_labelTrainIds12.png')
-        elif self.n_classes == 19:
-            lbl_path = lbl_path.replace('_gtFine_labelTrainIds11.png', '_gtFine_labelTrainIds.png')
-        # lbl_path = lbl_path.split('.')[0]  # 获取文件名的基础部分（去掉扩展名）
-        # lbl_path = f"{lbl_path}_gtFine_labelTrainIds11.png"  # 添加后缀并重新组合
-        seq_name = Path(rgb).parts[-2]
-        seq_idx = Path(rgb).parts[-1].split('_')[0]
+        # if self.n_classes == 12:
+        #     lbl_path = lbl_path.replace('_gtFine_labelTrainIds11.png', '_gtFine_labelTrainIds12.png')
+        # elif self.n_classes == 19:
+        #     lbl_path = lbl_path.replace('_gtFine_labelTrainIds11.png', '_gtFine_labelTrainIds.png')
+        # # lbl_path = lbl_path.split('.')[0]  # 获取文件名的基础部分（去掉扩展名）
+        # # lbl_path = f"{lbl_path}_gtFine_labelTrainIds11.png"  # 添加后缀并重新组合
+        # seq_name = Path(rgb).parts[-2]
+        # seq_idx = Path(rgb).parts[-1].split('_')[0]
 
-        sample = {}
-        sample['img'] = io.read_image(rgb)[:3, ...][:, :440]
-        # H, W = sample['img'].shape[1:]
-        sample['img_next'] = io.read_image(rgb_ref)[:3, ...][:, :440]
-        label = io.read_image(lbl_path)[0,...].unsqueeze(0)
+        # sample = {}
+        # sample['img'] = io.read_image(rgb)[:3, ...][:, :440]
+        # # H, W = sample['img'].shape[1:]
+        # sample['img_next'] = io.read_image(rgb_ref)[:3, ...][:, :440]
+        # label = io.read_image(lbl_path)[0,...].unsqueeze(0)
         # label_ref = io.read_image(lbl_path_ref)[0,...].unsqueeze(0)
-        sample['mask'] = label[:, :440]
-        # sample['mask_ref'] = label_ref[:, :440]
-        event_voxel = np.load(event_path, allow_pickle=True)
-        event_voxel = torch.from_numpy(event_voxel[:, :440])
-        event_voxel = torch.cat([event_voxel[4*i:4*(i+1)].mean(0).unsqueeze(0) for i in range(5)], dim=0)
-        sample['event'] = event_voxel
-        flow = np.load(flow, allow_pickle=True)
+        # sample['mask'] = label[:, :440]
+        # sample['mask_cur'] = label_ref[:, :440]
+        # event_voxel = np.load(event_path, allow_pickle=True)
+        # event_voxel = torch.from_numpy(event_voxel[:, :440])
+        # sample['event'] = event_voxel
+        # flow = np.load(flow, allow_pickle=True)
         # flow_inverse = np.load(flow_inverse, allow_pickle=True)
-        # # print(flow.shape)   # 2 440 640
-        # # exit(0)
-        sample['flow'] = torch.from_numpy(flow[:, :440])
+        # # # print(flow.shape)   # 2 440 640
+        # # # exit(0)
+        # sample['flow'] = torch.from_numpy(flow[:, :440])
         # sample['flow_inverse'] = torch.from_numpy(flow_inverse[:, :440])
+
+        # # save dict
+        # np.save(event_path.replace('/startF1_img_event_50ms/event_20', '/sample'), sample)
+        sample_path = str(self.files[index])
+        sample = np.load(sample_path, allow_pickle=True).item()
+        seq_name = Path(sample_path).parts[-2]
+        seq_idx = Path(sample_path).parts[-1].split('_')[0]
+
+        sample['event'] = torch.cat([sample['event'][4*i:4*(i+1)].mean(0).unsqueeze(0) for i in range(5)], dim=0)
 
         if self.transform:
             sample = self.transform(sample)
         label = sample['mask']
         del sample['mask']
         label = self.encode(label.squeeze().numpy()).long()
-        # label_ref = sample['mask_ref']
-        # del sample['mask_ref']
+        # label_ref = sample['mask_cur']
+        # del sample['mask_cur']
         # label_ref = self.encode(label_ref.squeeze().numpy()).long()
         event_voxel = sample['event']
         del sample['event']

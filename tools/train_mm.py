@@ -30,7 +30,7 @@ def main(cfg, scene, classes, gpu, save_dir):
     start = time.time()
     best_mIoU = 0.0
     best_epoch = 0
-    num_workers = 32
+    num_workers = 8
     device = torch.device(cfg['DEVICE'])
     train_cfg, eval_cfg = cfg['TRAIN'], cfg['EVAL']
     dataset_cfg, model_cfg = cfg['DATASET'], cfg['MODEL']

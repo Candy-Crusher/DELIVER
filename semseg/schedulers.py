@@ -79,18 +79,42 @@ class WarmupCosineLR(WarmupLR):
         
         return self.eta_ratio + (1 - self.eta_ratio) * (1 + math.cos(math.pi * self.last_epoch / real_max_iter)) / 2
 
+# **重启调度器**
+class CosineAnnealingWarmRestarts(_LRScheduler):
+    def __init__(self, optimizer, T_0, T_mult=1, eta_min=0, last_epoch=-1):
+        self.T_0 = T_0
+        self.T_mult = T_mult
+        self.eta_min = eta_min
+        self.T_i = T_0
+        self.cycle = 0
+        super(CosineAnnealingWarmRestarts, self).__init__(optimizer, last_epoch)
+
+    def get_lr(self):
+        if self.last_epoch == 0:
+            self.T_i = self.T_0
+            self.cycle = 0
+        elif self.last_epoch >= self.T_i:
+            self.cycle += 1
+            self.T_i = self.T_0 * (self.T_mult ** self.cycle)
+            self.last_epoch = 0  # 重启
+
+        return [
+            self.eta_min + (base_lr - self.eta_min) * (1 + math.cos(math.pi * self.last_epoch / self.T_i)) / 2
+            for base_lr in self.base_lrs
+        ]
+
+__all__ = ['polylr', 'warmuppolylr', 'warmupcosinelr', 'warmupsteplr', 'cosineannealingwarmrestarts']
 
 
-__all__ = ['polylr', 'warmuppolylr', 'warmupcosinelr', 'warmupsteplr']
-
-
-def get_scheduler(scheduler_name: str, optimizer, max_iter: int, power: int, warmup_iter: int, warmup_ratio: float):
-    assert scheduler_name in __all__, f"Unavailable scheduler name >> {scheduler_name}.\nAvailable schedulers: {__all__}"
+def get_scheduler(scheduler_name: str, optimizer, max_iter: int, power: float, warmup_iter: int, warmup_ratio: float, T_0=50, T_mult=2):
     if scheduler_name == 'warmuppolylr':
         return WarmupPolyLR(optimizer, power, max_iter, warmup_iter, warmup_ratio, warmup='linear')
     elif scheduler_name == 'warmupcosinelr':
         return WarmupCosineLR(optimizer, max_iter, warmup_iter=warmup_iter, warmup_ratio=warmup_ratio)
-    return PolyLR(optimizer, max_iter)
+    elif scheduler_name == 'cosineannealingwarmrestarts':
+        return CosineAnnealingWarmRestarts(optimizer, T_0=T_0, T_mult=T_mult)
+    else:
+        raise ValueError(f"Unsupported scheduler: {scheduler_name}")
 
 
 if __name__ == '__main__':

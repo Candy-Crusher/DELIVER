@@ -5,6 +5,23 @@ from .softsplat import softsplat
 import numpy as np
 from scipy.ndimage import gaussian_filter
 
+class SELayer(nn.Module):
+    def __init__(self, channel, reduction=16):
+        super(SELayer, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(channel, channel // reduction, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(channel // reduction, channel, bias=False),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, c, 1, 1)
+        return x * y.expand_as(x)
+    
 class Synthesis(torch.nn.Module):
     """Modified from the synthesis model in Softmax Splatting (https://github.com/sniklaus/softmax-splatting). Modifications:
     1) Warping only one frame with forward flow;
@@ -234,12 +251,13 @@ class Synthesis(torch.nn.Module):
         class Warp(torch.nn.Module):
             def __init__(self, embed_dim):
                 super().__init__()
-                self.nets = nn.ModuleList([
+                self.nets = nn.ModuleList([nn.Sequential(
                     # Basic('conv-relu-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
                     # Basic('more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
-                    Basic('more-more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
+                    Basic('more-more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True),
+                    SELayer(embed_dim[i]),
                     # Basic('more-more-more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
-                    for i in range(len(embed_dim))
+                    )for i in range(len(embed_dim))
                 ])
             # end
 
