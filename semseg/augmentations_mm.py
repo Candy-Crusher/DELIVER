@@ -430,9 +430,12 @@ class RandomResizedCrop:
         for k, v in sample.items():
             if k == 'mask':                
                 sample[k] = TF.resize(v, (nH, nW), TF.InterpolationMode.NEAREST)
+            elif k == 'flow':
+                # Resize flow and scale its values by scale_factor
+                flow_resized = TF.resize(v, (nH, nW), TF.InterpolationMode.BILINEAR)
+                sample[k] = flow_resized * scale_factor  # Scale the flow vectors by the resize factor
             else:
                 sample[k] = TF.resize(v, (nH, nW), TF.InterpolationMode.BILINEAR)
-
         # random crop
         margin_h = max(sample['img'].shape[1] - tH, 0)
         margin_w = max(sample['img'].shape[2] - tW, 0)

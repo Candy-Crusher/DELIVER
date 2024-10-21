@@ -195,8 +195,17 @@ class DSEC(Dataset):
 
         if self.transform:
             sample = self.transform(sample)
-        label = sample['mask']
-        del sample['mask']
+        if random.random() < 0:
+            label = sample['mask_cur']
+            del sample['mask_cur']
+            # flow zero
+            flow = torch.zeros_like(sample['flow'])
+            del sample['flow']
+        else:
+            label = sample['mask']
+            del sample['mask']
+            flow = sample['flow']
+            del sample['flow']
         label = self.encode(label.squeeze().numpy()).long()
         # label_ref = sample['mask_cur']
         # del sample['mask_cur']
@@ -205,8 +214,7 @@ class DSEC(Dataset):
         del sample['event']
         img_next = sample['img_next']
         del sample['img_next']
-        flow = sample['flow']
-        del sample['flow']
+
         # flow_inverse = sample['flow_inverse']
         # del sample['flow_inverse']
 
