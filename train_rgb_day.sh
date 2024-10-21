@@ -1,5 +1,5 @@
 export PYTHONPATH="/home/xiaoshan/work/adap_v/DELIVER"
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=3
 train_dataset='day'
 input_type='rgb'
 NCCL_P2P_DISABLE=1 torchrun --standalone --nproc_per_node=1\
