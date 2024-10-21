@@ -23,6 +23,37 @@ from semseg.utils.utils import fix_seeds, setup_cudnn, cleanup_ddp, setup_ddp, g
 # import Image
 from PIL import Image
 
+def concatenate_images(images, direction='horizontal'):
+    if not images:
+        raise ValueError("The images list should not be empty")
+
+    if direction == 'horizontal':
+        # 水平拼接
+        total_width = sum(image.width for image in images)
+        max_height = max(image.height for image in images)
+        new_image = Image.new('RGB', (total_width, max_height))
+
+        current_x = 0
+        for image in images:
+            new_image.paste(image, (current_x, 0))
+            current_x += image.width
+
+    elif direction == 'vertical':
+        # 垂直拼接
+        max_width = max(image.width for image in images)
+        total_height = sum(image.height for image in images)
+        new_image = Image.new('RGB', (max_width, total_height))
+
+        current_y = 0
+        for image in images:
+            new_image.paste(image, (0, current_y))
+            current_y += image.height
+
+    else:
+        raise ValueError("Direction should be 'horizontal' or 'vertical'")
+
+    return new_image
+
 def pad_image(img, target_size):
     rows_to_pad = max(target_size[0] - img.shape[2], 0)
     cols_to_pad = max(target_size[1] - img.shape[3], 0)
@@ -101,15 +132,18 @@ def evaluate(model, dataloader, device, save_dir=None, palette=None):
                 if not os.path.exists(save_path):
                     os.makedirs(save_path)
                 pred_argmax = preds[i].argmax(dim=0).cpu().numpy().astype(np.uint8)
-                rgb_image = palette[pred_argmax]
+                rgb_pred = palette[pred_argmax]
                 rgb_lbl = palette[labels[i].cpu().numpy().astype(np.uint8)]
                 # 将numpy数组转换为PIL图像
                 pred_argmax = Image.fromarray(pred_argmax)
-                rgb_image = Image.fromarray(rgb_image.astype(np.uint8))
+                rgb_pred = Image.fromarray(rgb_pred.astype(np.uint8))
                 rgb_lbl = Image.fromarray(rgb_lbl.astype(np.uint8))
-                rgb_image.save(save_path / idx)
-                pred_argmax.save(save_path / idx.replace('.png', '_labelTrainIds11.png'))
-                rgb_lbl.save(save_path / idx.replace('.png', '_labelTrainIds11_gt.png'))
+                img = Image.fromarray((images[0][i].cpu().numpy().transpose(1, 2, 0) * 255).astype(np.uint8))
+                pred_argmax.save(save_path / idx.replace('.npy', '_labelTrainIds11.png'))
+                concatenated_image = concatenate_images([img,rgb_lbl,rgb_pred], direction='horizontal')
+                concatenated_image.save(save_path / idx.replace('.npy', '_color.png'))
+                # rgb_image.save(save_path / idx.replace('.npy', '_color.png'))
+                # rgb_lbl.save(save_path / idx.replace('.npy', '_color_gt.png'))
         metrics.update(preds, labels)
     ious, miou = metrics.compute_iou()
     acc, macc = metrics.compute_pixel_acc()

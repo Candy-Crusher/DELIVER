@@ -73,7 +73,7 @@ class CMNeXt(BaseModel):
         #                                 nn.LeakyReLU(negative_slope=0.2, inplace=True),
         #                                 RRDB(dim=4, num_RDB=8, growth_rate=12, num_dense_layer=4, bias=False))
         feature_dims = [64, 128, 320, 512]
-        self.softsplat_net = Synthesis(feature_dims, activation='ELU')
+        self.softsplat_net = Synthesis(feature_dims, activation='PReLU')
         # self.flow_nets = nn.ModuleList(
         #     flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=feature_dims[i])
         #     for i in range(len(feature_dims))
@@ -86,7 +86,7 @@ class CMNeXt(BaseModel):
         ## backbone
         # feature_before, event_feature_before = self.backbone(x, [event_voxel])
         feature_before = self.backbone(x)
-        feature_next = self.backbone([rgb_next])
+        # feature_next = self.backbone([rgb_next])
         
         # feature_loss = 0
         # # flownet
