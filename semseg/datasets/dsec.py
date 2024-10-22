@@ -188,6 +188,7 @@ class DSEC(Dataset):
         # np.save(event_path.replace('/startF1_img_event_50ms/event_20', '/sample'), sample)
         sample_path = str(self.files[index])
         sample = np.load(sample_path, allow_pickle=True).item()
+        # dict_keys(['img', 'img_next', 'mask', 'mask_cur', 'event', 'flow', 'flow_inverse'])
         seq_name = Path(sample_path).parts[-2]
         seq_idx = Path(sample_path).parts[-1].split('_')[0]
         bin = 5

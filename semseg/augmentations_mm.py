@@ -30,7 +30,8 @@ class Normalize:
 
     def __call__(self, sample: list) -> list:
         for k, v in sample.items():
-            if k == 'mask':
+            # if k in ['mask', 'flow', 'event']: 
+            if k in ['mask', 'flow']: 
                 continue
             elif k == 'img' or k == 'img_next':
                 sample[k] = sample[k].float()
@@ -55,6 +56,10 @@ class RandomColorJitter:
             sample['img'] = TF.adjust_contrast(sample['img'], self.contrast)
             self.saturation = random.uniform(0.5, 1.5)
             sample['img'] = TF.adjust_saturation(sample['img'], self.saturation)
+            if 'img_next' in sample:
+                sample['img_next'] = TF.adjust_brightness(sample['img_next'], self.brightness)
+                sample['img_next'] = TF.adjust_contrast(sample['img_next'], self.contrast)
+                sample['img_next'] = TF.adjust_saturation(sample['img_next'], self.saturation)
         return sample
 
 
@@ -102,6 +107,8 @@ class RandomGaussianBlur:
         if random.random() < self.p:
             sample['img'] = TF.gaussian_blur(sample['img'], self.kernel_size)
             # img = TF.gaussian_blur(img, self.kernel_size)
+            if 'img_next' in sample:
+                sample['img_next'] = TF.gaussian_blur(sample['img_next'], self.kernel_size)
         return sample
 
 

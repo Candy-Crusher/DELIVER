@@ -11,10 +11,12 @@ from semseg.models.modules.flow_network.FRMA.modified_frma import EventFlowEstim
 from semseg.models.modules.flow_network.FRMA.model import flow_network
 from semseg.models.modules.flow_network.FRMA.config import Config
 from semseg.models.modules.softsplat.frame_synthesis import *
+from semseg.models.modules.softsplat.softsplat import *
 from semseg.utils.pac import SupervisedGaussKernel2d
 from semseg.losses import calc_photometric_loss, reduce_photometric_loss, LapLoss, VGGLoss
 from fvcore.nn import flop_count_table, FlopCountAnalysis
 import matplotlib.pyplot as plt
+import moviepy.editor
 
 class DenseLayer(torch.nn.Module):
     def __init__(self, dim, growth_rate, bias):
@@ -200,6 +202,56 @@ class CMNeXt(BaseModel):
                 # msg = self.backbone.load_state_dict(checkpoint, strict=False)
                 msg = self.load_state_dict(checkpoint, strict=False)
                 # print("init_pretrained message: ", msg)
+    
+    def viz2(self, flow, x, rgb_next):
+        # 可视化光流
+        tenFlow = flow[0].unsqueeze(0)  # .detach().cpu().numpy()
+        flow_magnitude = (tenFlow ** 2).sum(axis=0) ** 0.5  # 计算光流的大小
+        tenFirst = x[0][0].unsqueeze(0)
+        tenSecond = rgb_next[0].unsqueeze(0)
+        # end
+        # 1 1 H W
+        tenMetric_L1 = torch.nn.functional.l1_loss(input=tenFirst, target=backwarp(tenIn=tenSecond, tenFlow=tenFlow), reduction='none').mean(1, True)
+        tenMetric_flow_mag = torch.sqrt(torch.square(tenFlow[:, 0, :, :] + tenFlow[:, 1, :, :])).unsqueeze(1)
+        Z = tenMetric_flow_mag
+
+        tenOutputs_softsplat = [softsplat(tenIn=tenFirst, tenFlow=tenFlow * fltTime, tenMetric=-tenMetric_L1, strMode='soft') for fltTime in np.linspace(0.0, 1.0, 11).tolist()]
+        npyOutputs_softsplat = [(tenOutput_softsplat[0, :, :, :].cpu().numpy().transpose(1, 2, 0) * 255.0).clip(0.0, 255.0).astype(np.uint8) for tenOutput_softsplat in tenOutputs_softsplat + list(reversed(tenOutputs_softsplat[1:-1]))]
+        preds = [np.concatenate([
+            # npyOutputs_sum[i][:, :, ::-1],
+            # npyOutputs_avg[i][:, :, ::-1],
+            # npyOutputs_linear[i][:, :, ::-1], 
+            npyOutputs_softsplat[i][:, :, ::-1],
+            ], axis=1) for i in range(len(npyOutputs_softsplat))]
+        video = moviepy.editor.ImageSequenceClip(sequence=preds, fps=5)
+        video.write_gif('./out.gif')
+
+        # 创建子图
+        fig, axes = plt.subplots(2, 2, figsize=(12, 12))
+
+        # 绘制 flow_magnitude
+        axes[0, 0].imshow(flow_magnitude[0].cpu().numpy(), cmap='plasma')
+        axes[0, 0].set_title('Flow Magnitude')
+        axes[0, 0].axis('off')
+
+        # 绘制 tenFirst
+        axes[0, 1].imshow(tenFirst[0].cpu().numpy().transpose(1, 2, 0))
+        axes[0, 1].set_title('First Frame')
+        axes[0, 1].axis('off')
+
+        # 绘制 tenSecond
+        axes[1, 0].imshow(tenSecond[0].cpu().numpy().transpose(1, 2, 0))
+        axes[1, 0].set_title('Second Frame')
+        axes[1, 0].axis('off')
+
+        # 绘制 npyOutputs_softsplat
+        axes[1, 1].imshow(npyOutputs_softsplat[0])
+        axes[1, 1].set_title('Softsplat Output')
+        axes[1, 1].axis('off')
+
+        plt.tight_layout()
+        plt.savefig('flow_and_softsplat.png', dpi=150)
+        plt.close()
 
 def load_dualpath_model(model, model_file):
     extra_pretrained = None
