@@ -7,6 +7,32 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 
+def outlier_penalty_loss(X, r=3):
+    """
+    Compute the outlier penalty loss (OPL) for a given latent variable X.
+
+    Args:
+        X (torch.Tensor): The input tensor of latent values with shape (batch_size, channels, height, width).
+        r (float): Scaling factor that determines how far outside of the standard deviation a latent value needs to be to be penalized.
+
+    Returns:
+        torch.Tensor: The outlier penalty loss value.
+    """
+    # Compute mean and standard deviation of X over height and width dimensions (H, W)
+    mean_X = X.mean(dim=(2, 3), keepdim=True)
+    std_X = X.std(dim=(2, 3), keepdim=True)
+    
+    # Compute the penalty for each latent value
+    penalty = torch.norm(X - mean_X, dim=1, keepdim=True) - r * std_X
+    
+    # Apply the max(., 0) operation
+    penalty = torch.maximum(penalty, torch.zeros_like(penalty))
+    
+    # Average over height and width dimensions
+    loss = penalty.mean(dim=(2, 3))
+    
+    return loss.mean()
+
 def get_vgg16_feature_extractor(layers):
     from torchvision.models import vgg16, VGG16_Weights
     from torchvision.models.feature_extraction import create_feature_extractor

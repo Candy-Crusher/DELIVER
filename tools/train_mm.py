@@ -135,9 +135,10 @@ def main(cfg, scene, classes, gpu, save_dir):
             sample = [sample[0]]
             
             with autocast(enabled=train_cfg['AMP']):
-                logits = model(sample, event_voxel, rgb_next, flow)
+                # logits = model(sample, event_voxel, rgb_next, flow)
+                logits, feature_loss = model(sample, event_voxel, rgb_next, flow)
                 # logits, feature_loss, consistent_loss = model(sample, event_voxel, rgb_next, flow, psi)
-                loss = loss_fn(logits, lbl)
+                loss = loss_fn(logits, lbl) + 1e5*feature_loss
                 # loss = loss_fn(logits, lbl) + 0.5*feature_loss + 0.5*consistent_loss
 
             scaler.scale(loss).backward()

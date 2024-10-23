@@ -114,7 +114,7 @@ def evaluate(model, dataloader, device, save_dir=None, palette=None):
             preds = sliding_predict(model, images, num_classes=n_classes).softmax(dim=1)
         else:
             # preds, _ , _ = model(images, event_voxel, rgb_next, flow, psi)
-            preds = model(images, event_voxel, rgb_next, flow)
+            preds, _ = model(images, event_voxel, rgb_next, flow)
             # preds = preds.softmax(dim=1)
             # preds = label_ref
             # print(preds.shape)

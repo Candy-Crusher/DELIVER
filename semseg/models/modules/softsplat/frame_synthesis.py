@@ -316,15 +316,15 @@ class Synthesis(torch.nn.Module):
         # end
 
         class Softmetric(torch.nn.Module):
-            def __init__(self, skip_type, attention_type=None, activation_layer=None):
+            def __init__(self, skip_type, in_ch, out_ch, attention_type=None, activation_layer=None):
                 super().__init__()
                 # embed_dim = [32, 64, 128, 256]
                 embed_dim = [16, 32, 64, 96]
 
                 # self.netEventInput = torch.nn.Conv2d(in_channels=3, out_channels=8, kernel_size=3, stride=1, padding=1, bias=False)
-                self.netEventInput = torch.nn.Conv2d(in_channels=4, out_channels=embed_dim[0]//2, kernel_size=3, stride=1, padding=1, bias=False)
+                self.netEventInput = torch.nn.Conv2d(in_channels=in_ch[0], out_channels=embed_dim[0]//2, kernel_size=3, stride=1, padding=1, bias=False)
                 # self.netRGBInput = torch.nn.Conv2d(in_channels=3, out_channels=8, kernel_size=3, stride=1, padding=1, bias=False)
-                self.netFlow = torch.nn.Conv2d(in_channels=2, out_channels=embed_dim[0]//2, kernel_size=3, stride=1, padding=1, bias=False)
+                self.netFlow = torch.nn.Conv2d(in_channels=in_ch[1], out_channels=embed_dim[0]//2, kernel_size=3, stride=1, padding=1, bias=False)
                 for intRow, intFeatures in enumerate(embed_dim):
                     self.add_module(str(intRow) + 'x0' + ' - ' + str(intRow) + 'x1', Basic('relu-conv-relu-conv', [intFeatures, intFeatures, intFeatures], True, skip_type, attention_type, activation_layer))
                 # end
@@ -344,18 +344,16 @@ class Synthesis(torch.nn.Module):
                     # self.add_module('1x' + str(intCol) + ' - ' + '0x' + str(intCol), Upsample_CrossScale([embed_dim[1], embed_dim[0], embed_dim[0]]))
                 # end
 
-                self.netOutput = Basic('conv-relu-conv', [embed_dim[0], embed_dim[0], 1], True, activation_layer=activation_layer)
+                self.netOutput = Basic('conv-relu-conv', [embed_dim[0], embed_dim[0], out_ch], True, activation_layer=activation_layer)
                 # self.netOutput = Basic('more-more-conv', [embed_dim[0], embed_dim[0], 1], True)
             # end
 
-            def forward(self, rgb, event_voxel, tenFlow):
+            def forward(self, in1, in2):
                 tenColumn = [None, None, None, None]
 
                 tenColumn[0] = torch.cat([
-                    self.netEventInput(event_voxel),
-                    # self.netRGBInput(rgb),
-                    # self.netRGBInput(rgb)+self.netEventInput(event_voxel),
-                    self.netFlow(tenFlow),
+                    self.netEventInput(in1),
+                    self.netFlow(in2),
                 ], 1)
                 # tenColumn[0]  = self.netEventInput(event_voxel)
                 tenColumn[1] = self._modules['0x0 - 1x0'](tenColumn[0])
@@ -441,6 +439,7 @@ class Synthesis(torch.nn.Module):
 
             def forward(self, tenEncone, tenMetricone, tenForward, tenScale=None):
                 tenOutput = []
+                tenMid = []
                 tenFlow = []
 
                 for intLevel in range(len(tenEncone)):
@@ -458,6 +457,7 @@ class Synthesis(torch.nn.Module):
                     # print(tenWarp.shape, tenMaskWarp.shape, tenIn.shape)
                     # print((tenMaskWarp > 0).shape)
                     # tenWarp = tenWarp[tenMaskWarp > 0] + tenIn[tenMaskWarp == 0]
+                    tenMid.append(tenWarp)
                     tenOutput.append(self.nets[intLevel](
                         # torch.cat([tenEncone[intLevel], tenEncone_event[intLevel], tenWarp], 1)
                         # torch.cat([tenEncone[intLevel], tenWarp], 1)
@@ -469,7 +469,7 @@ class Synthesis(torch.nn.Module):
                     ))
                 # end
 
-                return tenOutput, tenFlow
+                return tenOutput, tenMid, tenFlow
             # end
         # end
         # skip_type = 'residual'
@@ -479,7 +479,8 @@ class Synthesis(torch.nn.Module):
         # attention_type = 'se'
         attention_type = 'cbam'
 
-        self.netSoftmetric = Softmetric(skip_type, attention_type, activation_layer=self.activation_layer)
+        # self.netFlow = Softmetric(skip_type, in_ch=[4,3], out_ch=2, attention_type=attention_type, activation_layer=self.activation_layer)
+        self.netSoftmetric = Softmetric(skip_type, in_ch=[4,2], out_ch=1, attention_type=attention_type, activation_layer=self.activation_layer)
         # self.netScale = Softmetric()
 
         self.netWarp = Warp(feature_dims, activation_layer=self.activation_layer)
@@ -498,10 +499,11 @@ class Synthesis(torch.nn.Module):
     def forward(self, tenEncone, rgb, event_voxel, tenForward):
     # def forward(self, tenEncone, tenForward, event_voxel, tenEncone_event=None, psi=None):
         # tenMetricone = torch.sqrt(torch.square(tenForward[:, 0, :, :] + tenForward[:, 1, :, :])).unsqueeze(1)
-        tenMetricone = self.netSoftmetric(rgb, event_voxel, tenForward) * 2.0
+        # tenForward = self.netFlow(event_voxel, rgb) * 2.0
+        tenMetricone = self.netSoftmetric(event_voxel, tenForward) * 2.0
         # tenMetricone = self.netSoftmetric(rgb, event_voxel, tenForward) * self.alpha_s
         # tenMetricone, tenScale = torch.chunk(self.netSoftmetric(rgb, event_voxel, tenForward) * 2.0, chunks=2, dim=1)
-        tenWarp, tenFlow = self.netWarp(tenEncone, tenMetricone, tenForward)
+        tenWarp, tenMid, tenFlow = self.netWarp(tenEncone, tenMetricone, tenForward)
         # tenWarp, tenFlow = self.netWarp(tenEncone, tenMetricone, tenForward, tenScale)
         # tenScale = self.netScale(rgb, event_voxel, tenForward)
         # # element-wise multiplication
@@ -526,7 +528,7 @@ class Synthesis(torch.nn.Module):
 
         # tenWarp, tenFlow = self.netWarp(tenEncone, tenMetricone_splat, tenMetricone_merge, tenForward, tenEncone_event)
 
-        return tenWarp, tenFlow
+        return tenWarp, tenMid, tenFlow
 
 @torch.no_grad()
 def predict_tensor(src_frame: torch.Tensor, flow: torch.Tensor, model: Synthesis, batch_size: int = 32):

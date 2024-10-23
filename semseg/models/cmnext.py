@@ -13,7 +13,7 @@ from semseg.models.modules.flow_network.FRMA.config import Config
 from semseg.models.modules.softsplat.frame_synthesis import *
 from semseg.models.modules.softsplat.softsplat import *
 from semseg.utils.pac import SupervisedGaussKernel2d
-from semseg.losses import calc_photometric_loss, reduce_photometric_loss, LapLoss, VGGLoss
+from semseg.losses import calc_photometric_loss, reduce_photometric_loss, LapLoss, VGGLoss, outlier_penalty_loss
 from fvcore.nn import flop_count_table, FlopCountAnalysis
 import matplotlib.pyplot as plt
 import moviepy.editor
@@ -104,7 +104,7 @@ class CMNeXt(BaseModel):
         # # 可视化feature在四个子图里
 
         # feature_after, interFlow = self.softsplat_net(feature_before, x[0], flow)
-        feature_after, interFlow = self.softsplat_net(feature_before, x[0], event_voxel, flow)
+        feature_after, feature_mid, interFlow = self.softsplat_net(feature_before, x[0], event_voxel, flow)
         # feature_after = [self.gauss_supervisor(f, fn) for f, fn in zip(feature_after, feature_next)]
         # for i, fea in enumerate(feature_before):
         #     feature_after[i] = feature_after[i] + fea
@@ -126,7 +126,7 @@ class CMNeXt(BaseModel):
         # for i, fea in enumerate(feature_before):
         #     feature_after[i], interFlow[i] = self.flow_nets[i](event_voxel, fea)
 
-        # self.visualize_all([x[0]]+feature_before, [rgb_next]+feature_after, [rgb_next]+feature_next, [flow]+interFlow)
+        # self.visualize_all([x[0]]+feature_before, [rgb_next]+feature_mid, [rgb_next]+feature_next, [flow]+interFlow)
         # self.visualize_all([x[0]]+feature_before, feature_after, [rgb_next]+feature_next, interFlow)
         # exit(0)  
         ## 计算监督损失
@@ -134,6 +134,7 @@ class CMNeXt(BaseModel):
         # loss_fn = LapLoss()
         # loss_fn = VGGLoss()
         # feature_loss = sum(loss_fn(f, fn) for f, fn in zip(feature_after, feature_next))
+        feature_loss = sum(outlier_penalty_loss(f, r=3) for f in feature_after)
         # photometric_losses = [calc_photometric_loss(f, fn) for f, fn in zip(feature_after, feature_next)]
         # feature_loss = reduce_photometric_loss(photometric_losses)
         # feature_loss = loss_fn(feature_after, feature_next)
@@ -147,7 +148,7 @@ class CMNeXt(BaseModel):
         # # L2 loss
         # consistent_loss = F.mse_loss(y, y_ref)
         # return y, feature_loss, consistent_loss
-        return y
+        return y, feature_loss
     
     def visualize_features(self, features, axes, title_prefix):
         for i, feature in enumerate(features):
