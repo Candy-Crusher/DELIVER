@@ -288,9 +288,10 @@ class Synthesis(torch.nn.Module):
                     LayerNorm_type = 'WithBias'
                     ffn_expansion_factor = 2.66
                     bias = False
-                    self.is_DA=True
-                    self.netEventInput = torch.nn.Conv2d(in_channels=4, out_channels=intChannels[2], kernel_size=3, stride=1, padding=1, bias=False)
-                    self.netRGBInput = torch.nn.Conv2d(in_channels=3, out_channels=intChannels[2], kernel_size=3, stride=1, padding=1, bias=False)
+                    self.is_DA=False
+                    self.encode1 = torch.nn.Conv2d(in_channels=3, out_channels=intChannels[2], kernel_size=3, stride=1, padding=1, bias=False)
+                    if self.is_DA:
+                        self.encode2 = torch.nn.Conv2d(in_channels=4, out_channels=intChannels[2], kernel_size=3, stride=1, padding=1, bias=False)
                     self.netMain = torch.nn.Sequential(
                         *[MultiAttentionBlock(dim, num_heads, LayerNorm_type, ffn_expansion_factor, bias, self.is_DA) 
                         for _ in range(num_multi_attn)]
@@ -322,17 +323,17 @@ class Synthesis(torch.nn.Module):
             # end
 
 
-            def forward(self, tenInput, event_voxel=None, rgb=None):
+            def forward(self, tenInput, in1=None, in2=None):
                 # Standard path through the main network
                 if self.strType == 'multi-attention':
-                    event_feature = self.netEventInput(event_voxel)
+                    f1 = self.encode1(in1)
                     if self.is_DA:
-                        rgb_feature = self.netRGBInput(rgb)
+                        f2 = self.encode2(in2)
                     else:
-                        rgb_feature = None
+                        f2 = None
                     tenMain = self.netShortcut(tenInput)
                     for layer in self.netMain:
-                        tenMain = layer(tenMain, event_feature, rgb_feature)
+                        tenMain = layer(tenMain, f1, f2)
                     return tenMain
                 tenMain = self.netMain(tenInput)
 
@@ -531,7 +532,7 @@ class Synthesis(torch.nn.Module):
                     tenMetricone = torch.nn.functional.interpolate(input=tenMetricone, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
                     
                     tenForward = torch.nn.functional.interpolate(input=tenForward, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False) * (float(tenEncone[intLevel].shape[3]) / float(tenForward.shape[3]))
-                    event_voxel = torch.nn.functional.interpolate(input=event_voxel, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
+                    # event_voxel = torch.nn.functional.interpolate(input=event_voxel, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
                     rgb = torch.nn.functional.interpolate(input=rgb, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
                     # tenScale = torch.nn.functional.interpolate(input=tenScale, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
                     tenFlow.append(tenForward)
@@ -550,7 +551,8 @@ class Synthesis(torch.nn.Module):
                             # torch.cat([tenEncone[intLevel], tenEncone_event[intLevel], tenWarp], 1)
                             # torch.cat([tenEncone[intLevel], tenWarp], 1)
                             # tenWarp
-                            tenWarp, event_voxel, rgb
+                            # tenWarp, event_voxel, rgb
+                            tenWarp, rgb
                             # tenWarp+tenIn
                             # tenWarp + tenEncone[intLevel]
                             # tenWarp + tenEncone_event[intLevel]
