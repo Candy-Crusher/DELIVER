@@ -384,21 +384,37 @@ class MultiAttentionBlock(torch.nn.Module):
         return Fw
 
 
+# class FRMA(torch.nn.Module):
+#     def __init__(self, dim, feature_dim, num_seq, growth_rate, num_dense_layer, num_flow, num_multi_attn, num_heads,
+#                  LayerNorm_type, ffn_expansion_factor, bias, is_DA=False, is_first_f=False, is_first_Fw=False):
+#         super(FRMA, self).__init__()
+#         self.rdb = RDB(dim, growth_rate, num_dense_layer, bias)
+#         self.rdb_KD = RDB(dim, growth_rate, num_dense_layer, bias) if is_DA else None
+#         self.conv_KD = nn.Conv2d(dim*num_seq, dim, kernel_size=1, padding=0, stride=1, bias=bias) if is_DA else None
+
+#         self.bwarp = MultiFlowBWarp(dim, num_seq, num_flow)
+#         self.conv_Fw = nn.Conv2d(feature_dim+dim*num_seq, feature_dim, kernel_size=1, padding=0, stride=1, bias=bias)
+#         self.conv_f = nn.Sequential(nn.Conv3d(dim+feature_dim if is_first_f else dim+feature_dim+3*num_flow, 3*num_flow, kernel_size=[1,3,3], padding=[0,1,1], stride=1, bias=bias),
+#                                     nn.LeakyReLU(negative_slope=0.2, inplace=True),
+#                                     nn.Conv3d(3*num_flow, 3*num_flow, kernel_size=[1, 3, 3], padding=[0, 1, 1], stride=1, bias=bias))
+
+#         self.multi_attn_block = nn.ModuleList([MultiAttentionBlock(feature_dim, num_heads, LayerNorm_type, ffn_expansion_factor, bias, is_DA) for _ in range(num_multi_attn)])
+
 class FRMA(torch.nn.Module):
     def __init__(self, dim, feature_dim, num_seq, growth_rate, num_dense_layer, num_flow, num_multi_attn, num_heads,
                  LayerNorm_type, ffn_expansion_factor, bias, is_DA=False, is_first_f=False, is_first_Fw=False):
         super(FRMA, self).__init__()
         self.rdb = RDB(dim, growth_rate, num_dense_layer, bias)
-        self.rdb_KD = RDB(dim, growth_rate, num_dense_layer, bias) if is_DA else None
-        self.conv_KD = nn.Conv2d(dim*num_seq, dim, kernel_size=1, padding=0, stride=1, bias=bias) if is_DA else None
+        # self.rdb_KD = RDB(dim, growth_rate, num_dense_layer, bias) if is_DA else None
+        # self.conv_KD = nn.Conv2d(dim*num_seq, dim, kernel_size=1, padding=0, stride=1, bias=bias) if is_DA else None
 
         self.bwarp = MultiFlowBWarp(dim, num_seq, num_flow)
-        self.conv_Fw = nn.Conv2d(feature_dim+dim*num_seq, feature_dim, kernel_size=1, padding=0, stride=1, bias=bias)
-        self.conv_f = nn.Sequential(nn.Conv3d(dim+feature_dim if is_first_f else dim+feature_dim+3*num_flow, 3*num_flow, kernel_size=[1,3,3], padding=[0,1,1], stride=1, bias=bias),
+        # self.conv_Fw = nn.Conv2d(dim*num_seq if is_first_Fw else dim+dim*num_seq, dim, kernel_size=1, padding=0, stride=1, bias=bias)
+        self.conv_f = nn.Sequential(nn.Conv3d(dim*2 if is_first_f else dim*2+3*num_flow, 3*num_flow, kernel_size=[1,3,3], padding=[0,1,1], stride=1, bias=bias),
                                     nn.LeakyReLU(negative_slope=0.2, inplace=True),
                                     nn.Conv3d(3*num_flow, 3*num_flow, kernel_size=[1, 3, 3], padding=[0, 1, 1], stride=1, bias=bias))
 
-        self.multi_attn_block = nn.ModuleList([MultiAttentionBlock(feature_dim, num_heads, LayerNorm_type, ffn_expansion_factor, bias, is_DA) for _ in range(num_multi_attn)])
+        # self.multi_attn_block = nn.ModuleList([MultiAttentionBlock(dim, num_heads, LayerNorm_type, ffn_expansion_factor, bias, is_DA) for _ in range(num_multi_attn)])
 
     def forward(self, F, Fw, f, F0_c, KD=None):
         B, C, T, H, W = F.shape
@@ -414,20 +430,20 @@ class FRMA(torch.nn.Module):
             f = self.conv_f(torch.cat([F0_c.repeat([1,1,T,1,1]), F], dim=1))
             # print("f shape 1: ", f.shape)   # B C=3 T=5 H=110 W=160
 
-        warped_F = self.bwarp(F, f)
-        # print("warped_F shape 1: ", warped_F.shape) # B C=dim T=5 H=110 W=160
-        warped_F = rearrange(warped_F, 'b c t h w -> b (c t) h w')
-        # print("Fw shape 1: ", Fw.shape) # B C=64/128/320/512 H=110/55/27/13 W=160/80
-        # print("warped_F shape 2: ", warped_F.shape) # B (C*T) H=110 W=160
-        Fw = self.conv_Fw(torch.cat([Fw, warped_F], dim=1))
+        # warped_F = self.bwarp(F, f)
+        # # print("warped_F shape 1: ", warped_F.shape) # B C=dim T=5 H=110 W=160
+        # warped_F = rearrange(warped_F, 'b c t h w -> b (c t) h w')
+        # # print("Fw shape 1: ", Fw.shape) # B C=64/128/320/512 H=110/55/27/13 W=160/80
+        # # print("warped_F shape 2: ", warped_F.shape) # B (C*T) H=110 W=160
+        # Fw = self.conv_Fw(torch.cat([Fw, warped_F], dim=1))
 
         # if KD is not None:
         #     KD = self.rdb_KD(KD)
         #     KD = rearrange(KD, 'b c t h w -> b (c t) h w')
         #     KD = self.conv_KD(KD)
 
-        for blk in self.multi_attn_block:
-            Fw = blk(Fw, F0_c.squeeze(dim=2), KD)
+        # for blk in self.multi_attn_block:
+        #     Fw = blk(Fw, F0_c.squeeze(dim=2), KD)
 
         return F, Fw, f
 
@@ -470,34 +486,36 @@ class flow_network(torch.nn.Module):
                                     nn.LeakyReLU(negative_slope=0.2, inplace=True),
                                     nn.Conv3d(3*num_flow, 3, kernel_size=[1, 3, 3], padding=[0, 1, 1], stride=1, bias=bias))
 
-        # generate degradation kernels
-        self.d_conv = nn.Sequential(nn.Conv3d(dim//num_seq, dim, kernel_size=[1,3,3], padding=[0,1,1], stride=1, bias=bias),
-                                    nn.LeakyReLU(negative_slope=0.2, inplace=True),
-                                    nn.Conv3d(dim, ds_kernel_size*ds_kernel_size, kernel_size=[1,3,3], padding=[0,1,1], stride=1, bias=bias))
+        # # generate degradation kernels
+        # self.d_conv = nn.Sequential(nn.Conv3d(dim//num_seq, dim, kernel_size=[1,3,3], padding=[0,1,1], stride=1, bias=bias),
+        #                             nn.LeakyReLU(negative_slope=0.2, inplace=True),
+        #                             nn.Conv3d(dim, ds_kernel_size*ds_kernel_size, kernel_size=[1,3,3], padding=[0,1,1], stride=1, bias=bias))
 
-        # generate anchor for TA loss
-        self.a_conv = nn.Sequential(nn.Conv3d(dim, dim, kernel_size=[1, 3, 3], padding=[0, 1, 1], stride=1, bias=bias),
-                                     nn.LeakyReLU(negative_slope=0.2, inplace=True),
-                                     nn.Conv3d(dim, in_channels, kernel_size=[1, 3, 3], padding=[0, 1, 1], stride=1, bias=bias))
+        # # generate anchor for TA loss
+        # self.a_conv = nn.Sequential(nn.Conv3d(dim, dim, kernel_size=[1, 3, 3], padding=[0, 1, 1], stride=1, bias=bias),
+        #                              nn.LeakyReLU(negative_slope=0.2, inplace=True),
+        #                              nn.Conv3d(dim, in_channels, kernel_size=[1, 3, 3], padding=[0, 1, 1], stride=1, bias=bias))
 
-    def forward(self, event_voxel, Fw, F0_c=None):
-        # print(event_voxel.shape)      # B C=4 T=5 H=440 W=640
-        # print(Fw.shape)     # B C=64 H=440 W=6640
-        # print(F0_c.shape)   # B C=3 H=440 W=640
-        B, C, T, H, W = event_voxel.shape
+    def forward(self, rgb, event_voxel, Fw=None):
+        # 将event voxel从dim 1分成两份
+        B, C, H, W = event_voxel.shape
+        event_voxel = event_voxel.view(B, C // 2, 2, H, W)
+        # # print(event_voxel.shape)      # B C=4 T=5 H=440 W=640
+        # # print(Fw.shape)     # B C=64 H=440 W=6640
+        # # print(F0_c.shape)   # B C=3 H=440 W=640
+        # B, C, T, H, W = event_voxel.shape
 
-        # 调整 event_voxel 的形状，使其与 Fw 的形状匹配
-        event_voxel = event_voxel.reshape(B, C * T, H, W)
+        # # 调整 event_voxel 的形状，使其与 Fw 的形状匹配
+        # event_voxel = event_voxel.reshape(B, C * T, H, W)
 
-        # 把 event_voxel 插值到 Fw 的尺寸
-        event_voxel = F.interpolate(event_voxel, size=(Fw.shape[2], Fw.shape[3]), mode='bilinear', align_corners=False)
-        # F0_c = F.interpolate(F0_c, size=(Fw.shape[2], Fw.shape[3]), mode='bilinear', align_corners=False)
-        # 恢复 event_voxel 的形状
-        event_voxel = event_voxel.reshape(B, C, T, Fw.shape[2], Fw.shape[3])
-        B, C, T, H, W = event_voxel.shape
+        # # 把 event_voxel 插值到 Fw 的尺寸
+        # event_voxel = F.interpolate(event_voxel, size=(Fw.shape[2], Fw.shape[3]), mode='bilinear', align_corners=False)
+        # # F0_c = F.interpolate(F0_c, size=(Fw.shape[2], Fw.shape[3]), mode='bilinear', align_corners=False)
+        # # 恢复 event_voxel 的形状
+        # event_voxel = event_voxel.reshape(B, C, T, Fw.shape[2], Fw.shape[3])
+        # B, C, T, H, W = event_voxel.shape
         event_feature = self.event_feature_extractor(event_voxel)
-        # F0_c = self.rgb_feature_extractor(F0_c)
-        F0_c = Fw
+        F0_c = self.rgb_feature_extractor(rgb)
         F0_c = F0_c.unsqueeze(dim=2)
         # print(event_feature.shape)      # B C=dim T=5 H=110 W=160
         # print(Fw.shape)                 # B C=feature_dim T=5 H=110 W=160
@@ -519,4 +537,5 @@ class flow_network(torch.nn.Module):
         # return event_feature, KD, f_Y, f, anchor
         # print(f_Y.shape)    # B C=3 T=5 H=110 W=160
         # print(f.shape)      # B C=3 T=5 H=110 W=160
-        return Fw, f_Y
+        # return Fw, f_Y
+        return f_Y[:, :2]

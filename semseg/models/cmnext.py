@@ -15,6 +15,7 @@ from semseg.models.modules.softsplat.softsplat import *
 from semseg.utils.pac import SupervisedGaussKernel2d
 from semseg.losses import calc_photometric_loss, reduce_photometric_loss, LapLoss, VGGLoss, outlier_penalty_loss
 from fvcore.nn import flop_count_table, FlopCountAnalysis
+from matplotlib.gridspec import GridSpec
 import matplotlib.pyplot as plt
 import moviepy.editor
 
@@ -80,6 +81,7 @@ class CMNeXt(BaseModel):
         #     flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=feature_dims[i])
         #     for i in range(len(feature_dims))
         # )
+        self.flow_net = flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=3)
         # self.gauss_supervisor = SupervisedGaussKernel2d(kernel_size=3, stride=1, padding=1, dilation=1)
         self.apply(self._init_weights)
 
@@ -90,7 +92,7 @@ class CMNeXt(BaseModel):
         feature_before = self.backbone(x)
         # feature_next = self.backbone([rgb_next])
         
-        # feature_loss = 0
+        feature_loss = 0
         # # flownet
         # # timelens unet + softsplat
         # event_voxel = event_voxel.unfold(1, 4, 4).permute(0, 4, 1, 2, 3)
@@ -102,19 +104,9 @@ class CMNeXt(BaseModel):
         # # flow = torch.zeros(B, 2, H, W).to(x[0].device)
         # # 可视化特征和光流
         # # 可视化feature在四个子图里
-
-        # feature_after, interFlow = self.softsplat_net(feature_before, x[0], flow)
+        flow = self.flow_net(x[0], event_voxel)
         feature_after, feature_mid, interFlow = self.softsplat_net(feature_before, x[0], event_voxel, flow)
-        # feature_after = [self.gauss_supervisor(f, fn) for f, fn in zip(feature_after, feature_next)]
-        # for i, fea in enumerate(feature_before):
-        #     feature_after[i] = feature_after[i] + fea
-
         # feature_after = feature_before
-        # feature_after, interFlow = self.softsplat_net(feature_before, flow, event_voxel, psi=psi)
-        # # if residual
-        # for i, fea in enumerate(feature_before):
-        #     feature_after[i] = feature_after[i] + fea
-        # # end
 
         # ## FRAM
         # # event_voxel B T H W
@@ -125,8 +117,9 @@ class CMNeXt(BaseModel):
         # event_voxel = event_voxel.unfold(1, 4, 4).permute(0, 4, 1, 2, 3)
         # for i, fea in enumerate(feature_before):
         #     feature_after[i], interFlow[i] = self.flow_nets[i](event_voxel, fea)
-
-        # self.visualize_all([x[0]]+feature_before, [rgb_next]+feature_mid, [rgb_next]+feature_next, [flow]+interFlow)
+        # import ipdb; ipdb.set_trace()
+        # self.visualize_all([x[0]]+feature_before, [rgb_next]+feature_mid, [rgb_next]+feature_after, [flow]+interFlow)
+        # self.visualize_features_all(feature_after)
         # self.visualize_all([x[0]]+feature_before, feature_after, [rgb_next]+feature_next, interFlow)
         # exit(0)  
         ## 计算监督损失
@@ -134,7 +127,7 @@ class CMNeXt(BaseModel):
         # loss_fn = LapLoss()
         # loss_fn = VGGLoss()
         # feature_loss = sum(loss_fn(f, fn) for f, fn in zip(feature_after, feature_next))
-        feature_loss = sum(outlier_penalty_loss(f, r=3) for f in feature_after)
+        # feature_loss = sum(outlier_penalty_loss(f, r=3) for f in feature_after)
         # photometric_losses = [calc_photometric_loss(f, fn) for f, fn in zip(feature_after, feature_next)]
         # feature_loss = reduce_photometric_loss(photometric_losses)
         # feature_loss = loss_fn(feature_after, feature_next)
@@ -142,14 +135,44 @@ class CMNeXt(BaseModel):
 
         y = self.decode_head(feature_after)
         y = F.interpolate(y, size=x[0].shape[2:], mode='bilinear', align_corners=False)
-        # consistent_loss = 0
         # y_ref = self.decode_head(feature_next)
         # y_ref = F.interpolate(y_ref, size=x[0].shape[2:], mode='bilinear', align_corners=False)
         # # L2 loss
         # consistent_loss = F.mse_loss(y, y_ref)
         # return y, feature_loss, consistent_loss
         return y, feature_loss
-    
+
+
+    def visualize_features_all(self, features):
+        total_features = sum(f.shape[1] for f in features)
+        print(f'Total number of features: {total_features}')
+        num_cols = int(total_features ** 0.5)
+        num_rows = (total_features + num_cols - 1) // num_cols
+
+        fig = plt.figure(figsize=(100, 60))
+        gs = GridSpec(num_rows, num_cols, figure=fig, wspace=0.1, hspace=0.1)
+
+        idx = 0
+        for i, feature in enumerate(features):
+            # 取第一个 batch 的特征图
+            feature_map = feature[0].detach().cpu().numpy()
+            for j in range(len(feature_map)):
+                if idx >= num_rows * num_cols:
+                    break
+                h, w = feature_map[j].shape
+                ax = fig.add_subplot(gs[idx])
+                im = ax.imshow(feature_map[j], cmap='viridis', extent=[0, w, 0, h])
+                ax.axis('off')
+                idx += 1
+
+        # # 添加颜色条
+        # for j in range(num_cols):
+        #     img = fig.axes[j].images[0]
+        #     fig.colorbar(img, ax=fig.axes[j::num_cols], orientation='vertical', fraction=0.046, pad=0.04)
+
+        plt.savefig('features_all.png', dpi=150)
+        plt.show()
+
     def visualize_features(self, features, axes, title_prefix):
         for i, feature in enumerate(features):
             # 取第一个batch的特征图
@@ -184,6 +207,11 @@ class CMNeXt(BaseModel):
 
         # 可视化光流
         self.visualize_flow(interFlow, axes[3], 'Flow')
+        # 添加颜色条
+        for i in range(4):
+            for j in range(num_features):
+                img = axes[i, j].images[0]
+                fig.colorbar(img, ax=axes[i, j], orientation='vertical', fraction=0.046, pad=0.04)
 
         plt.tight_layout(pad=2.0)
         plt.savefig('features_and_flow.png', dpi=150)
