@@ -4,23 +4,8 @@ from typing import Union
 from .softsplat import softsplat
 import numpy as np
 from scipy.ndimage import gaussian_filter
-
-# class SELayer(nn.Module):
-#     def __init__(self, channel, reduction=16):
-#         super(SELayer, self).__init__()
-#         self.avg_pool = nn.AdaptiveAvgPool2d(1)
-#         self.fc = nn.Sequential(
-#             nn.Linear(channel, channel // reduction, bias=False),
-#             nn.ReLU(inplace=True),
-#             nn.Linear(channel // reduction, channel, bias=False),
-#             nn.Sigmoid()
-#         )
-
-#     def forward(self, x):
-#         b, c, _, _ = x.size()
-#         y = self.avg_pool(x).view(b, c)
-#         y = self.fc(y).view(b, c, 1, 1)
-#         return x * y.expand_as(x)
+import numbers
+from einops import rearrange
     
 class SEBlock(nn.Module):
     """Squeeze-and-Excitation Block (SE Block)"""
@@ -91,8 +76,143 @@ class CBAM(nn.Module):
 
         return x * spatial_attention  # Apply spatial attention
 
+def to_3d(x):
+    return rearrange(x, 'b c h w -> b (h w) c')
 
-       
+
+def to_4d(x, h, w):
+    return rearrange(x, 'b (h w) c -> b c h w', h=h, w=w)
+
+class BiasFree_LayerNorm(nn.Module):
+    def __init__(self, normalized_shape):
+        super(BiasFree_LayerNorm, self).__init__()
+        if isinstance(normalized_shape, numbers.Integral):
+            normalized_shape = (normalized_shape,)
+        normalized_shape = torch.Size(normalized_shape)
+
+        assert len(normalized_shape) == 1
+        self.normalized_shape = normalized_shape
+        self.weight = nn.Parameter(torch.ones(normalized_shape))
+        self.normalized_shape = normalized_shape
+
+    def forward(self, x):
+        sigma = x.var(-1, keepdim=True, unbiased=False)
+        return x / torch.sqrt(sigma + 1e-5) * self.weight
+
+
+class WithBias_LayerNorm(nn.Module):
+    def __init__(self, normalized_shape):
+        super(WithBias_LayerNorm, self).__init__()
+        if isinstance(normalized_shape, numbers.Integral):
+            normalized_shape = (normalized_shape,)
+        normalized_shape = torch.Size(normalized_shape)
+
+        assert len(normalized_shape) == 1
+
+        self.weight = nn.Parameter(torch.ones(normalized_shape))
+        self.bias = nn.Parameter(torch.zeros(normalized_shape))
+        self.normalized_shape = normalized_shape
+
+    def forward(self, x):
+        mu = x.mean(-1, keepdim=True)
+        sigma = x.var(-1, keepdim=True, unbiased=False)
+        return (x - mu) / torch.sqrt(sigma + 1e-5) * self.weight + self.bias
+
+
+class LayerNorm(nn.Module):
+    def __init__(self, dim, LayerNorm_type):
+        super(LayerNorm, self).__init__()
+        if LayerNorm_type == 'BiasFree':
+            self.body = BiasFree_LayerNorm(dim)
+        else:
+            self.body = WithBias_LayerNorm(dim)
+
+    def forward(self, x):
+        h, w = x.shape[-2:]
+        return to_4d(self.body(to_3d(x)), h, w)
+
+
+class FeedForward(nn.Module):
+    def __init__(self, dim, ffn_expansion_factor, bias):
+        super(FeedForward, self).__init__()
+
+        hidden_features = int(dim * ffn_expansion_factor)
+
+        self.project_in = nn.Conv2d(dim, hidden_features * 2, kernel_size=1, bias=bias)
+        self.dwconv = nn.Conv2d(hidden_features * 2, hidden_features * 2, kernel_size=3, stride=1, padding=1,
+                                groups=hidden_features * 2, bias=bias)
+        self.project_out = nn.Conv2d(hidden_features, dim, kernel_size=1, bias=bias)
+
+    def forward(self, x):
+        x = self.project_in(x)
+        x1, x2 = self.dwconv(x).chunk(2, dim=1)
+        x = torch.nn.functional.gelu(x1) * x2
+        x = self.project_out(x)
+        return x
+
+
+class Attention(nn.Module):
+    # Restormer (CVPR 2022) transposed-attnetion block
+    # original source code: https://github.com/swz30/Restormer
+    def __init__(self, dim, num_heads, bias):
+        super(Attention, self).__init__()
+        self.num_heads = num_heads
+        self.temperature = nn.Parameter(torch.ones(num_heads, 1, 1))
+
+        self.q = nn.Conv2d(dim, dim, kernel_size=1, bias=bias)
+        self.q_dwconv = nn.Conv2d(dim, dim, kernel_size=3, stride=1, padding=1, groups=dim, bias=bias)
+        self.kv_conv = nn.Conv2d(dim, dim*2, kernel_size=1, bias=bias)
+        self.kv_dwconv = nn.Conv2d(dim*2, dim*2, kernel_size=3, stride=1, padding=1, groups=dim*2, bias=bias)
+
+        self.project_out = nn.Conv2d(dim, dim, kernel_size=1, bias=bias)
+
+    def forward(self, x, f):
+        b, c, h, w = x.shape
+
+        q = self.q_dwconv(self.q(f))
+        kv = self.kv_dwconv(self.kv_conv(x))
+        k, v = kv.chunk(2, dim=1)
+
+        q = rearrange(q, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
+        k = rearrange(k, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
+        v = rearrange(v, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
+
+        q = torch.nn.functional.normalize(q, dim=-1)
+        k = torch.nn.functional.normalize(k, dim=-1)
+
+        attn = (q @ k.transpose(-2, -1)) * self.temperature
+        attn = attn.softmax(dim=-1)
+
+        out = (attn @ v)
+        out = rearrange(out, 'b head c (h w) -> b (head c) h w', head=self.num_heads, h=h, w=w)
+        out = self.project_out(out)
+
+        return out
+
+
+class MultiAttentionBlock(torch.nn.Module):
+    def __init__(self, dim, num_heads, LayerNorm_type, ffn_expansion_factor, bias, is_DA=False):
+        super(MultiAttentionBlock, self).__init__()
+        self.norm1 = LayerNorm(dim, LayerNorm_type)
+        self.co_attn = Attention(dim, num_heads, bias)
+        self.norm2 = LayerNorm(dim, LayerNorm_type)
+        self.ffn1 = FeedForward(dim, ffn_expansion_factor, bias)
+
+        if is_DA:
+            self.norm3 = LayerNorm(dim, LayerNorm_type)
+            self.da_attn = Attention(dim, num_heads, bias)
+            self.norm4 = LayerNorm(dim, LayerNorm_type)
+            self.ffn2 = FeedForward(dim, ffn_expansion_factor, bias)
+
+    def forward(self, Fw, F0_c, Kd):
+        Fw = Fw + self.co_attn(self.norm1(Fw), F0_c)
+        Fw = Fw + self.ffn1(self.norm2(Fw))
+
+        if Kd is not None:
+            Fw = Fw + self.da_attn(self.norm3(Fw), Kd)
+            Fw = Fw + self.ffn2(self.norm4(Fw))
+
+        return Fw
 
 
 
@@ -122,6 +242,7 @@ class Synthesis(torch.nn.Module):
         class Basic(torch.nn.Module):
             def __init__(self, strType, intChannels, boolSkip, skip_type='residual', attention_type='cbam', activation_layer=None):
                 super().__init__()
+                self.strType = strType
                 self.activation_layer = activation_layer
                 if strType == 'relu-conv-relu-conv':
                     self.netMain = torch.nn.Sequential(
@@ -160,23 +281,19 @@ class Synthesis(torch.nn.Module):
                         self.activation_layer(intChannels[1]),
                         torch.nn.Conv2d(in_channels=intChannels[1], out_channels=intChannels[2], kernel_size=3, stride=1, padding=1, bias=False)
                     )
-                elif strType == 'more-more-more-conv':
+                elif strType == 'multi-attention':
+                    dim = intChannels[2]
+                    num_multi_attn = 2
+                    num_heads = 4
+                    LayerNorm_type = 'WithBias'
+                    ffn_expansion_factor = 2.66
+                    bias = False
+                    self.is_DA=True
+                    self.netEventInput = torch.nn.Conv2d(in_channels=4, out_channels=intChannels[2], kernel_size=3, stride=1, padding=1, bias=False)
+                    self.netRGBInput = torch.nn.Conv2d(in_channels=3, out_channels=intChannels[2], kernel_size=3, stride=1, padding=1, bias=False)
                     self.netMain = torch.nn.Sequential(
-                        torch.nn.Conv2d(in_channels=intChannels[0], out_channels=intChannels[1], kernel_size=3, stride=1, padding=1, bias=False),
-                        self.activation_layer(intChannels[1]),
-                        torch.nn.Conv2d(in_channels=intChannels[1], out_channels=intChannels[1]//2, kernel_size=3, stride=1, padding=1, bias=False),
-                        self.activation_layer(intChannels[1]//2),
-                        torch.nn.Conv2d(in_channels=intChannels[1]//2, out_channels=intChannels[1]//4, kernel_size=3, stride=1, padding=1, bias=False),
-                        self.activation_layer(intChannels[1]//4),
-                        torch.nn.Conv2d(in_channels=intChannels[1]//4, out_channels=intChannels[1]//8, kernel_size=3, stride=1, padding=1, bias=False),
-                        self.activation_layer(intChannels[1]//8),
-                        torch.nn.Conv2d(in_channels=intChannels[1]//8, out_channels=intChannels[1]//4, kernel_size=3, stride=1, padding=1, bias=False),
-                        self.activation_layer(intChannels[1]//4),
-                        torch.nn.Conv2d(in_channels=intChannels[1]//4, out_channels=intChannels[1]//2, kernel_size=3, stride=1, padding=1, bias=False),
-                        self.activation_layer(intChannels[1]//2),
-                        torch.nn.Conv2d(in_channels=intChannels[1]//2, out_channels=intChannels[1], kernel_size=3, stride=1, padding=1, bias=False),
-                        self.activation_layer(intChannels[1]),
-                        torch.nn.Conv2d(in_channels=intChannels[1], out_channels=intChannels[2], kernel_size=3, stride=1, padding=1, bias=False)
+                        *[MultiAttentionBlock(dim, num_heads, LayerNorm_type, ffn_expansion_factor, bias, self.is_DA) 
+                        for _ in range(num_multi_attn)]
                     )
                 # end
 
@@ -205,8 +322,18 @@ class Synthesis(torch.nn.Module):
             # end
 
 
-            def forward(self, tenInput):
+            def forward(self, tenInput, event_voxel=None, rgb=None):
                 # Standard path through the main network
+                if self.strType == 'multi-attention':
+                    event_feature = self.netEventInput(event_voxel)
+                    if self.is_DA:
+                        rgb_feature = self.netRGBInput(rgb)
+                    else:
+                        rgb_feature = None
+                    tenMain = self.netShortcut(tenInput)
+                    for layer in self.netMain:
+                        tenMain = layer(tenMain, event_feature, rgb_feature)
+                    return tenMain
                 tenMain = self.netMain(tenInput)
 
                 if self.boolSkip == False:
@@ -374,53 +501,10 @@ class Synthesis(torch.nn.Module):
                     # end
                 # end
 
-                # # cross-connections
-                # intColumn = 1
-                # tenColumn[3] = self._modules['3x0 - 3x1'](tenColumn[3])
-                # for intRow in range(len(tenColumn) -2, -1, -1):
-                #     tenColumn[intRow] = self._modules[str(intRow) + 'x' + str(intColumn - 1) + ' - ' + str(intRow) + 'x' + str(intColumn)](tenColumn[intRow])
-                #     if intRow != 0:
-                #         tenColumn[intRow] = self._modules[str(intRow + 1) + 'x' + str(intColumn) + ' - ' + str(intRow) + 'x' + str(intColumn)](tenColumn[intRow], tenColumn[intRow+1])
                 return self.netOutput(tenColumn[0])
                 # return torch.sigmoid(self.netOutput(tenColumn[0]))
             # end
         # end
-
-        # class Warp(torch.nn.Module):
-        #     def __init__(self, embed_dim):
-        #         super().__init__()
-        #         self.nets = nn.ModuleList([
-        #             Basic('conv-relu-conv', [embed_dim[i], embed_dim[i], embed_dim[i]], True)
-        #             for i in range(len(embed_dim))
-        #         ])
-        #     # end
-
-        #     def forward(self, tenEncone, tenMetricone_splat, tenMetricone_merge, tenForward, tenEncone_event):
-        #     # def forward(self, tenEncone, tenMetricone, tenForward, tenEncone_event):
-        #         tenOutput = []
-                
-        #         # Ft_0 = softsplat(tenIn=torch.cat([tenMetricone_merge, -tenForward], 1), tenFlow=tenForward, tenMetric=tenMetricone_splat, strMode='soft')
-        #         Ft_0 = softsplat(tenIn=-tenForward, tenFlow=tenForward, tenMetric=tenMetricone_splat, strMode='soft')
-
-        #         for intLevel in range(len(tenEncone)):
-        #             Ft_0 = torch.nn.functional.interpolate(input=Ft_0, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
-        #             # M_splat = torch.nn.functional.interpolate(input=tenMetricone_splat, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
-        #             tenWarp = backwarp(tenIn=tenEncone[intLevel], tenFlow=Ft_0)
-        #             # tenWarp = backwarp(tenIn=torch.cat([tenEncone[intLevel], M_splat], 1), tenFlow=Ft_0)
-        #             tenOutput.append(self.nets[intLevel](
-        #                 # torch.cat([tenEncone[intLevel], tenEncone_event[intLevel], tenWarp], 1)
-        #                 # torch.cat([tenEncone[intLevel], tenWarp], 1)
-        #                 tenWarp
-        #                 # tenWarp+tenIn
-        #                 # tenWarp + tenEncone[intLevel]
-        #                 # tenWarp + tenEncone_event[intLevel]
-        #                 # tenWarp + tenEncone[intLevel] + tenEncone_event[intLevel]
-        #             ))
-        #         # end
-
-        #         return tenOutput, None
-        #     # end
-        # # end
 
         class Warp(torch.nn.Module):
             def __init__(self, embed_dim, activation_layer=None):
@@ -430,14 +514,15 @@ class Synthesis(torch.nn.Module):
                     # Basic('conv-relu-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
                     # Basic('more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
                     # Basic('more-more-more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
-                    Basic('more-more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True, activation_layer=activation_layer)
+                    # Basic('more-more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True, activation_layer=activation_layer)
+                    Basic('multi-attention', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True, activation_layer=activation_layer)
                     # SELayer(embed_dim[i]),
                     # )
                     for i in range(len(embed_dim))
                 ])
             # end
 
-            def forward(self, tenEncone, tenMetricone, tenForward, tenScale=None):
+            def forward(self, tenEncone, tenMetricone, tenForward, event_voxel=None, rgb=None):
                 tenOutput = []
                 tenMid = []
                 tenFlow = []
@@ -446,6 +531,8 @@ class Synthesis(torch.nn.Module):
                     tenMetricone = torch.nn.functional.interpolate(input=tenMetricone, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
                     
                     tenForward = torch.nn.functional.interpolate(input=tenForward, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False) * (float(tenEncone[intLevel].shape[3]) / float(tenForward.shape[3]))
+                    event_voxel = torch.nn.functional.interpolate(input=event_voxel, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
+                    rgb = torch.nn.functional.interpolate(input=rgb, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
                     # tenScale = torch.nn.functional.interpolate(input=tenScale, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
                     tenFlow.append(tenForward)
                     tenIn=torch.cat([tenEncone[intLevel], tenMetricone], 1)
@@ -458,15 +545,18 @@ class Synthesis(torch.nn.Module):
                     # print((tenMaskWarp > 0).shape)
                     # tenWarp = tenWarp[tenMaskWarp > 0] + tenIn[tenMaskWarp == 0]
                     tenMid.append(tenWarp)
-                    tenOutput.append(self.nets[intLevel](
-                        # torch.cat([tenEncone[intLevel], tenEncone_event[intLevel], tenWarp], 1)
-                        # torch.cat([tenEncone[intLevel], tenWarp], 1)
-                        tenWarp
-                        # tenWarp+tenIn
-                        # tenWarp + tenEncone[intLevel]
-                        # tenWarp + tenEncone_event[intLevel]
-                        # tenWarp + tenEncone[intLevel] + tenEncone_event[intLevel]
-                    ))
+                    tenOutput.append(
+                        self.nets[intLevel](
+                            # torch.cat([tenEncone[intLevel], tenEncone_event[intLevel], tenWarp], 1)
+                            # torch.cat([tenEncone[intLevel], tenWarp], 1)
+                            # tenWarp
+                            tenWarp, event_voxel, rgb
+                            # tenWarp+tenIn
+                            # tenWarp + tenEncone[intLevel]
+                            # tenWarp + tenEncone_event[intLevel]
+                            # tenWarp + tenEncone[intLevel] + tenEncone_event[intLevel]
+                        )
+                    )
                 # end
 
                 return tenOutput, tenMid, tenFlow
@@ -485,16 +575,6 @@ class Synthesis(torch.nn.Module):
 
         self.netWarp = Warp(feature_dims, activation_layer=self.activation_layer)
 
-        # # 定义可学习的alpha参数，并初始化为1
-        # self.alpha_s = nn.Parameter(torch.tensor(2.0))
-        # self.alpha_s_p = nn.Parameter(torch.tensor(1.0))
-        # self.alpha_s_f = nn.Parameter(torch.tensor(1.0))
-        # self.alpha_s_v = nn.Parameter(torch.tensor(1.0))
-
-        # self.alpha_m_p = nn.Parameter(torch.tensor(1.0))
-        # self.alpha_m_f = nn.Parameter(torch.tensor(1.0))
-        # self.alpha_m_v = nn.Parameter(torch.tensor(1.0))
-
 
     def forward(self, tenEncone, rgb, event_voxel, tenForward):
     # def forward(self, tenEncone, tenForward, event_voxel, tenEncone_event=None, psi=None):
@@ -503,30 +583,7 @@ class Synthesis(torch.nn.Module):
         tenMetricone = self.netSoftmetric(event_voxel, tenForward) * 2.0
         # tenMetricone = self.netSoftmetric(rgb, event_voxel, tenForward) * self.alpha_s
         # tenMetricone, tenScale = torch.chunk(self.netSoftmetric(rgb, event_voxel, tenForward) * 2.0, chunks=2, dim=1)
-        tenWarp, tenMid, tenFlow = self.netWarp(tenEncone, tenMetricone, tenForward)
-        # tenWarp, tenFlow = self.netWarp(tenEncone, tenMetricone, tenForward, tenScale)
-        # tenScale = self.netScale(rgb, event_voxel, tenForward)
-        # # element-wise multiplication
-        # print(tenWarp.shape, tenScale.shape)
-        # tenWarp = tenWarp * tenScale
-        # tenMetricone_splat, tenMetricone_merge = torch.chunk(self.netSoftmetric(event_voxel, tenForward) * 2.0, chunks=2, dim=1)
-
-        # # 计算各个度量
-        # psi_photo = psi[:,0].unsqueeze(1)
-        # psi_flow = psi[:,1].unsqueeze(1)
-        # psi_varia = psi[:,2].unsqueeze(1)
-        
-        # # 计算 Splatting 度量标准
-        # tenMetricone_splat = (1 / (1 + (self.alpha_s_p * psi_photo))) + \
-        #           (1 / (1 + (self.alpha_s_f * psi_flow))) + \
-        #           (1 / (1 + (self.alpha_s_v * psi_varia)))
-        # tenMetricone_splat = self.alpha_s * tenMetricone_splat
-
-        # tenMetricone_merge = (1 / (1 + (self.alpha_m_p * psi_photo))) + \
-        #             (1 / (1 + (self.alpha_m_f * psi_flow))) + \
-        #             (1 / (1 + (self.alpha_m_v * psi_varia)))
-
-        # tenWarp, tenFlow = self.netWarp(tenEncone, tenMetricone_splat, tenMetricone_merge, tenForward, tenEncone_event)
+        tenWarp, tenMid, tenFlow = self.netWarp(tenEncone, tenMetricone, tenForward, event_voxel, rgb)
 
         return tenWarp, tenMid, tenFlow
 
@@ -555,51 +612,3 @@ def softsplat_tensor(src_frame: torch.Tensor, flow: torch.Tensor, transforms, we
         return transforms.denormalize_frame(out_frames)
     else:
         return transforms.deprocess_frame(out_frames)
-
-def backwarp(tenIn, tenFlow):
-    tenHor = torch.linspace(start=-1.0, end=1.0, steps=tenFlow.shape[3], dtype=tenFlow.dtype, device=tenFlow.device).view(1, 1, 1, -1).repeat(1, 1, tenFlow.shape[2], 1)
-    tenVer = torch.linspace(start=-1.0, end=1.0, steps=tenFlow.shape[2], dtype=tenFlow.dtype, device=tenFlow.device).view(1, 1, -1, 1).repeat(1, 1, 1, tenFlow.shape[3])
-
-    tenGrid = torch.cat([tenHor, tenVer], 1).cuda()
-
-    tenFlow = torch.cat([tenFlow[:, 0:1, :, :] / ((tenIn.shape[3] - 1.0) / 2.0), tenFlow[:, 1:2, :, :] / ((tenIn.shape[2] - 1.0) / 2.0)], 1)
-
-    return torch.nn.functional.grid_sample(input=tenIn, grid=(tenGrid + tenFlow).permute(0, 2, 3, 1), mode='bilinear', padding_mode='zeros', align_corners=True)
-# end
-
-def compute_photometric_consistency(I0, I1, F0to1):
-    """计算光度一致性 ψ_photo"""
-    warped_I1 = backwarp(I1, F0to1)
-    psi_photo = np.abs(I0 - warped_I1)
-    return psi_photo
-
-def compute_flow_consistency(F0to1, F1to0):
-    """计算光流一致性 ψ_flow"""
-    # 反向映射光流 F1to0
-    warped_F1to0_x = backwarp(F1to0[..., 0], F0to1)
-    warped_F1to0_y = backwarp(F1to0[..., 1], F0to1)
-    # 计算一致性
-    psi_flow = np.sqrt((F0to1[..., 0] + warped_F1to0_x)**2 + (F0to1[..., 1] + warped_F1to0_y)**2)
-    return psi_flow
-
-def compute_flow_variance(F0to1):
-    """计算光流方差 ψ_varia"""
-    F_squared = F0to1 ** 2
-    G_F_squared_x = gaussian_filter(F_squared[..., 0], sigma=1)
-    G_F_squared_y = gaussian_filter(F_squared[..., 1], sigma=1)
-    
-    G_F_x = gaussian_filter(F0to1[..., 0], sigma=1)
-    G_F_y = gaussian_filter(F0to1[..., 1], sigma=1)
-    
-    variance_x = G_F_squared_x - (G_F_x ** 2)
-    variance_y = G_F_squared_y - (G_F_y ** 2)
-    
-    psi_varia = np.sqrt(variance_x + variance_y)
-    return psi_varia
-
-def compute_metric(psi_photo, psi_flow, psi_varia, alpha_p, alpha_f, alpha_v):
-    """计算度量标准 M"""
-    M = (1 / (1 + (alpha_p * psi_photo))) + \
-        (1 / (1 + (alpha_f * psi_flow))) + \
-        (1 / (1 + (alpha_v * psi_varia)))
-    return M

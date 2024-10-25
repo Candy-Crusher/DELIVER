@@ -104,7 +104,7 @@ class CMNeXt(BaseModel):
         # # flow = torch.zeros(B, 2, H, W).to(x[0].device)
         # # 可视化特征和光流
         # # 可视化feature在四个子图里
-        flow = self.flow_net(x[0], event_voxel)
+        # flow = self.flow_net(x[0], event_voxel)
         feature_after, feature_mid, interFlow = self.softsplat_net(feature_before, x[0], event_voxel, flow)
         # feature_after = feature_before
 
