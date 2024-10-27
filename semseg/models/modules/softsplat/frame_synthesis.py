@@ -205,7 +205,10 @@ class MultiAttentionBlock(torch.nn.Module):
             self.ffn2 = FeedForward(dim, ffn_expansion_factor, bias)
 
     def forward(self, Fw, F0_c, Kd):
-        Fw = Fw + self.co_attn(self.norm1(Fw), F0_c)
+        if F0_c is not None:
+            Fw = Fw + self.co_attn(self.norm1(Fw), F0_c)
+        else:
+            Fw = Fw + self.co_attn(self.norm1(Fw), Fw)
         Fw = Fw + self.ffn1(self.norm2(Fw))
 
         if Kd is not None:
@@ -281,17 +284,43 @@ class Synthesis(torch.nn.Module):
                         self.activation_layer(intChannels[1]),
                         torch.nn.Conv2d(in_channels=intChannels[1], out_channels=intChannels[2], kernel_size=3, stride=1, padding=1, bias=False)
                     )
+                elif strType == 'more-more-conv-k5':
+                    self.netMain = torch.nn.Sequential(
+                        torch.nn.Conv2d(in_channels=intChannels[0], out_channels=intChannels[1], kernel_size=5, stride=1, padding=2, bias=False),
+                        self.activation_layer(intChannels[1]),
+                        torch.nn.Conv2d(in_channels=intChannels[1], out_channels=intChannels[1]//2, kernel_size=5, stride=1, padding=2, bias=False),
+                        self.activation_layer(intChannels[1]//2),
+                        torch.nn.Conv2d(in_channels=intChannels[1]//2, out_channels=intChannels[1]//4, kernel_size=5, stride=1, padding=2, bias=False),
+                        self.activation_layer(intChannels[1]//4),
+                        torch.nn.Conv2d(in_channels=intChannels[1]//4, out_channels=intChannels[1]//2, kernel_size=5, stride=1, padding=2, bias=False),
+                        self.activation_layer(intChannels[1]//2),
+                        torch.nn.Conv2d(in_channels=intChannels[1]//2, out_channels=intChannels[1], kernel_size=5, stride=1, padding=2, bias=False),
+                        self.activation_layer(intChannels[1]),
+                        torch.nn.Conv2d(in_channels=intChannels[1], out_channels=intChannels[2], kernel_size=5, stride=1, padding=2, bias=False)
+                    )
+                elif strType == 'dilation-more-more-conv':
+                    self.netMain = torch.nn.Sequential(
+                        torch.nn.Conv2d(in_channels=intChannels[0], out_channels=intChannels[1], kernel_size=3, stride=1, padding=1, dilation=1, bias=False),
+                        self.activation_layer(intChannels[1]),
+                        torch.nn.Conv2d(in_channels=intChannels[1], out_channels=intChannels[1]//2, kernel_size=3, stride=1, padding=2, dilation=2, bias=False),
+                        self.activation_layer(intChannels[1]//2),
+                        torch.nn.Conv2d(in_channels=intChannels[1]//2, out_channels=intChannels[1]//4, kernel_size=3, stride=1, padding=5, dilation=5, bias=False),
+                        self.activation_layer(intChannels[1]//4),
+                        torch.nn.Conv2d(in_channels=intChannels[1]//4, out_channels=intChannels[1]//2, kernel_size=3, stride=1, padding=1, dilation=1, bias=False),
+                        self.activation_layer(intChannels[1]//2),
+                        torch.nn.Conv2d(in_channels=intChannels[1]//2, out_channels=intChannels[1], kernel_size=3, stride=1, padding=2, dilation=2, bias=False),
+                        self.activation_layer(intChannels[1]),
+                        torch.nn.Conv2d(in_channels=intChannels[1], out_channels=intChannels[2], kernel_size=3, stride=1, padding=5, dilation=5, bias=False)
+                    )
+
                 elif strType == 'multi-attention':
                     dim = intChannels[2]
-                    num_multi_attn = 2
-                    num_heads = 4
+                    num_multi_attn = 1
+                    num_heads = 16
                     LayerNorm_type = 'WithBias'
                     ffn_expansion_factor = 2.66
                     bias = False
                     self.is_DA=False
-                    self.encode1 = torch.nn.Conv2d(in_channels=3, out_channels=intChannels[2], kernel_size=3, stride=1, padding=1, bias=False)
-                    if self.is_DA:
-                        self.encode2 = torch.nn.Conv2d(in_channels=4, out_channels=intChannels[2], kernel_size=3, stride=1, padding=1, bias=False)
                     self.netMain = torch.nn.Sequential(
                         *[MultiAttentionBlock(dim, num_heads, LayerNorm_type, ffn_expansion_factor, bias, self.is_DA) 
                         for _ in range(num_multi_attn)]
@@ -326,14 +355,14 @@ class Synthesis(torch.nn.Module):
             def forward(self, tenInput, in1=None, in2=None):
                 # Standard path through the main network
                 if self.strType == 'multi-attention':
-                    f1 = self.encode1(in1)
-                    if self.is_DA:
-                        f2 = self.encode2(in2)
+                    tenMain = tenInput[:, :-1]
+                    if in1 is not None:
+                        tenMetric = in1.repeat(1, tenMain.shape[1], 1, 1)
                     else:
-                        f2 = None
-                    tenMain = self.netShortcut(tenInput)
+                        tenMetric = tenInput[:, -1:].repeat(1, tenMain.shape[1], 1, 1)
                     for layer in self.netMain:
-                        tenMain = layer(tenMain, f1, f2)
+                        # tenMain = layer(tenMain, in1, in2)
+                        tenMain = layer(tenMain, tenMetric, None)
                     return tenMain
                 tenMain = self.netMain(tenInput)
 
@@ -514,9 +543,10 @@ class Synthesis(torch.nn.Module):
                     # nn.Sequential(
                     # Basic('conv-relu-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
                     # Basic('more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
-                    # Basic('more-more-more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
-                    # Basic('more-more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True, activation_layer=activation_layer)
-                    Basic('multi-attention', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True, activation_layer=activation_layer)
+                    Basic('more-more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True, activation_layer=activation_layer)
+                    # Basic('more-more-conv-k5', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True, activation_layer=activation_layer)
+                    # Basic('dilation-more-more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True, activation_layer=activation_layer)
+                    # Basic('multi-attention', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True, activation_layer=activation_layer)
                     # SELayer(embed_dim[i]),
                     # )
                     for i in range(len(embed_dim))
@@ -533,7 +563,7 @@ class Synthesis(torch.nn.Module):
                     
                     tenForward = torch.nn.functional.interpolate(input=tenForward, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False) * (float(tenEncone[intLevel].shape[3]) / float(tenForward.shape[3]))
                     # event_voxel = torch.nn.functional.interpolate(input=event_voxel, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
-                    rgb = torch.nn.functional.interpolate(input=rgb, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
+                    # rgb = torch.nn.functional.interpolate(input=rgb, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
                     # tenScale = torch.nn.functional.interpolate(input=tenScale, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
                     tenFlow.append(tenForward)
                     tenIn=torch.cat([tenEncone[intLevel], tenMetricone], 1)
@@ -550,9 +580,9 @@ class Synthesis(torch.nn.Module):
                         self.nets[intLevel](
                             # torch.cat([tenEncone[intLevel], tenEncone_event[intLevel], tenWarp], 1)
                             # torch.cat([tenEncone[intLevel], tenWarp], 1)
-                            # tenWarp
+                            tenWarp
                             # tenWarp, event_voxel, rgb
-                            tenWarp, rgb
+                            # tenWarp, tenMetricone
                             # tenWarp+tenIn
                             # tenWarp + tenEncone[intLevel]
                             # tenWarp + tenEncone_event[intLevel]

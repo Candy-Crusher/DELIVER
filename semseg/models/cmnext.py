@@ -10,6 +10,7 @@ from semseg.models.modules.flow_network import unet
 from semseg.models.modules.flow_network.FRMA.modified_frma import EventFlowEstimator
 from semseg.models.modules.flow_network.FRMA.model import flow_network
 from semseg.models.modules.flow_network.FRMA.config import Config
+from semseg.models.modules.flow_network.eraft.eraft import ERAFT
 from semseg.models.modules.softsplat.frame_synthesis import *
 from semseg.models.modules.softsplat.softsplat import *
 from semseg.utils.pac import SupervisedGaussKernel2d
@@ -72,6 +73,8 @@ class CMNeXt(BaseModel):
         self.decode_head = SegFormerHead(self.backbone.channels, 256 if 'B0' in backbone or 'B1' in backbone else 512, num_classes)
         # self.flow_net = EventFlowEstimator(in_channels=4, num_multi_flow=1)
         # self.flow_net = unet.UNet(5, 2, False)
+        # self.flow_net = flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=3)
+        self.flow_net = ERAFT(n_first_channels=2)
         # self.event_feature_extractor = nn.Sequential(nn.Conv3d(4, 4, kernel_size=[1,3,3], padding=[0,1,1], stride=1, bias=False),
         #                                 nn.LeakyReLU(negative_slope=0.2, inplace=True),
         #                                 RRDB(dim=4, num_RDB=8, growth_rate=12, num_dense_layer=4, bias=False))
@@ -81,7 +84,6 @@ class CMNeXt(BaseModel):
         #     flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=feature_dims[i])
         #     for i in range(len(feature_dims))
         # )
-        self.flow_net = flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=3)
         # self.gauss_supervisor = SupervisedGaussKernel2d(kernel_size=3, stride=1, padding=1, dilation=1)
         self.apply(self._init_weights)
 
@@ -105,6 +107,8 @@ class CMNeXt(BaseModel):
         # # 可视化特征和光流
         # # 可视化feature在四个子图里
         # flow = self.flow_net(x[0], event_voxel)
+        ev1, ev2 = torch.split(event_voxel, 2, dim=1)
+        flow = self.flow_net(ev1, ev2)[-1]
         feature_after, feature_mid, interFlow = self.softsplat_net(feature_before, x[0], event_voxel, flow)
         # feature_after = feature_before
 
