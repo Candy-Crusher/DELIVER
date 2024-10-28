@@ -608,21 +608,17 @@ class Synthesis(torch.nn.Module):
         self.netWarp = Warp(feature_dims, activation_layer=self.activation_layer)
 
 
-    def forward(self, tenEncone, rgb, event_voxel, tenForward):
+    def forward(self, tenEncone, rgb, event_voxel, tenForward, tenMetricone=None):
     # def forward(self, tenEncone, tenForward, event_voxel, tenEncone_event=None, psi=None):
         # tenMetricone = torch.sqrt(torch.square(tenForward[:, 0, :, :] + tenForward[:, 1, :, :])).unsqueeze(1)
         # tenForward = self.netFlow(event_voxel, rgb) * 2.0
-        tenMetricone = self.netSoftmetric(event_voxel, tenForward) * 2.0
+        if tenMetricone is None:
+            tenMetricone = self.netSoftmetric(event_voxel, tenForward) * 2.0
         # tenMetricone = self.netSoftmetric(rgb, event_voxel, tenForward) * self.alpha_s
         # tenMetricone, tenScale = torch.chunk(self.netSoftmetric(rgb, event_voxel, tenForward) * 2.0, chunks=2, dim=1)
         tenWarp, tenMid, tenFlow = self.netWarp(tenEncone, tenMetricone, tenForward, event_voxel, rgb)
 
         return tenWarp, tenMid, tenFlow
-    
-    # def forward(self, tenEncone, rgb, event_voxel, tenForward, tenMetricone):
-    #     tenWarp, tenMid, tenFlow = self.netWarp(tenEncone, tenMetricone, tenForward, event_voxel, rgb)
-
-    #     return tenWarp, tenMid, tenFlow
 
 @torch.no_grad()
 def predict_tensor(src_frame: torch.Tensor, flow: torch.Tensor, model: Synthesis, batch_size: int = 32):

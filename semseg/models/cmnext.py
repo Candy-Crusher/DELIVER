@@ -20,95 +20,36 @@ from fvcore.nn import flop_count_table, FlopCountAnalysis
 from matplotlib.gridspec import GridSpec
 import matplotlib.pyplot as plt
 import moviepy.editor
-
-class DenseLayer(torch.nn.Module):
-    def __init__(self, dim, growth_rate, bias):
-        super(DenseLayer, self).__init__()
-        self.conv = nn.Conv3d(dim, growth_rate, kernel_size=[1,3,3], padding=[0,1,1], stride=1, bias=bias)
-        self.lrelu = torch.nn.LeakyReLU(0.2)
-
-    def forward(self, x):
-        out = self.lrelu(self.conv(x))
-        out = torch.cat((x, out), 1)
-        return out
-
-
-class RDB(torch.nn.Module):
-    def __init__(self, dim, growth_rate, num_dense_layer, bias):
-        super(RDB, self).__init__()
-        self.layer = [DenseLayer(dim=dim+growth_rate*i, growth_rate=growth_rate, bias=bias) for i in range(num_dense_layer)]
-        self.layer = torch.nn.Sequential(*self.layer)
-        self.conv = nn.Conv3d(dim+growth_rate*num_dense_layer, dim, kernel_size=1, padding=0, stride=1)
-
-    def forward(self, x):
-        out = self.layer(x)
-        out = self.conv(out)
-        out = out + x
-
-        return out
-
-class RRDB(nn.Module):
-    def __init__(self, dim, num_RDB, growth_rate, num_dense_layer, bias):
-        super(RRDB, self).__init__()
-        self.RDBs = nn.ModuleList([RDB(dim=dim, growth_rate=growth_rate, num_dense_layer=num_dense_layer, bias=bias) for _ in range(num_RDB)])
-        # self.conv = nn.Sequential(*[nn.Conv3d(dim * num_RDB, dim, kernel_size=1, padding=0, stride=1, bias=bias),
-        #                             nn.Conv3d(dim, dim, kernel_size=[1,3,3], padding=[0,1,1], stride=1, bias=bias)])
-        self.conv = nn.Conv3d(dim * num_RDB, dim, kernel_size=1, padding=0, stride=1, bias=bias)
-        self.merge = nn.Conv2d(dim * 5, 5, kernel_size=3, padding=1, stride=1, bias=bias)
-        self.shortcut = nn.Conv2d(dim * 5, 5, kernel_size=3, padding=1, stride=1, bias=bias)
-
-    def forward(self, x):
-        input = x
-        RDBs_out = []
-        for rdb_block in self.RDBs:
-            x = rdb_block(x)
-            RDBs_out.append(x)
-        x = self.conv(torch.cat(RDBs_out, dim=1))
-        x = self.merge(x.flatten(1, 2))
-        input = self.shortcut(input.flatten(1, 2))
-        return x + input
     
 class CMNeXt(BaseModel):
     def __init__(self, backbone: str = 'CMNeXt-B0', num_classes: int = 25, modals: list = ['img', 'depth', 'event', 'lidar']) -> None:
         super().__init__(backbone, num_classes, modals, with_events=False)
         self.decode_head = SegFormerHead(self.backbone.channels, 256 if 'B0' in backbone or 'B1' in backbone else 512, num_classes)
-        # self.flow_net = EventFlowEstimator(in_channels=4, num_multi_flow=1)
-        # self.flow_net = unet.UNet(5, 2, False)
         # self.flow_net = flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=3)
-        self.flow_net = ERAFT(n_first_channels=2)
-        # self.flow_net = RAFTSpline()
-        # self.event_feature_extractor = nn.Sequential(nn.Conv3d(4, 4, kernel_size=[1,3,3], padding=[0,1,1], stride=1, bias=False),
-        #                                 nn.LeakyReLU(negative_slope=0.2, inplace=True),
-        #                                 RRDB(dim=4, num_RDB=8, growth_rate=12, num_dense_layer=4, bias=False))
-        feature_dims = [64, 128, 320, 512]
-        self.softsplat_net = Synthesis(feature_dims, activation='PReLU')
-        # self.flow_nets = nn.ModuleList(
+        # # self.flow_nets = nn.ModuleList(
         #     flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=feature_dims[i])
         #     for i in range(len(feature_dims))
         # )
-        # self.gauss_supervisor = SupervisedGaussKernel2d(kernel_size=3, stride=1, padding=1, dilation=1)
+        self.flow_net = ERAFT(n_first_channels=2)
+        # self.flow_net = RAFTSpline()        
+
+        feature_dims = [64, 128, 320, 512]
+        self.softsplat_net = Synthesis(feature_dims, activation='PReLU')
+
         self.apply(self._init_weights)
 
-    # def forward(self, x: list, event_voxel: Tensor=None, rgb_next: Tensor=None, flow: Tensor=None, psi: Tensor=None) -> list:
     def forward(self, x: list, event_voxel: Tensor=None, rgb_next: Tensor=None, flow: Tensor=None) -> list:
-        # # flownet
-        # # timelens unet + softsplat
-        # event_voxel = event_voxel.unfold(1, 4, 4).permute(0, 4, 1, 2, 3)
-        # event_voxel = self.event_feature_extractor(event_voxel)
-        # b c t h w -> b ct h w
 
-        # # flow = self.flow_net(event_voxel)
-        B, C, H ,W = x[0].shape
-        # # flow = torch.zeros(B, 2, H, W).to(x[0].device)
-        # # 可视化特征和光流
-        # # 可视化feature在四个子图里
-        # flow = self.flow_net(x[0], event_voxel)
+        ################ zero flow ################
+        # B, C, H ,W = x[0].shape
+        # flow = torch.zeros(B, 2, H, W).to(x[0].device)
+        ##########################################
+
         ################ for eraft ################
         bin = 5
         event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-        # ev1, ev2 = torch.split(event_voxel, 2, dim=1)
-        # flow = self.flow_net(ev1, ev2)[-1]
-        flow = torch.zeros(B, 2, H, W).to(x[0].device)
+        ev1, ev2 = torch.split(event_voxel, 2, dim=1)
+        flow = self.flow_net(ev1, ev2)[-1]
         ##########################################
 
         # ################# for bflow ################
@@ -122,49 +63,34 @@ class CMNeXt(BaseModel):
         # ##########################################
 
         ## backbone
-        # feature_before, event_feature_before = self.backbone(x, [event_voxel])
+        metric = None
         # metric = self.softsplat_net.netSoftmetric(event_voxel, flow) * 2.0
-        feature_before = self.backbone(x)
-        # feature_before = self.backbone(x, metric=metric)
+        feature_before = self.backbone(x, metric=metric)
         # feature_next = self.backbone([rgb_next])
         
         feature_loss = 0
-        # feature_after, feature_mid, interFlow = self.softsplat_net(feature_before, x[0], event_voxel, flow, metric)
-        feature_after, feature_mid, interFlow = self.softsplat_net(feature_before, x[0], event_voxel, flow)
+        feature_after, feature_mid, interFlow = self.softsplat_net(feature_before, x[0], event_voxel, flow, metric)
         # feature_after = feature_before
 
-        # ## FRAM
-        # # event_voxel B T H W
-        # # T = 20
+        # ################# for FRMA ################
         # # 变成[[0,1,2,3], [4,5,6,7], [8,9,10,11], [12,13,14,15], [16,17,18,19]]这样 B C=4 T=5 H W的shape
         # feature_after = [None, None, None, None]
         # interFlow = [None, None, None, None]
         # event_voxel = event_voxel.unfold(1, 4, 4).permute(0, 4, 1, 2, 3)
         # for i, fea in enumerate(feature_before):
         #     feature_after[i], interFlow[i] = self.flow_nets[i](event_voxel, fea)
+        # ##########################################
+
+        ## visualization
         # import ipdb; ipdb.set_trace()
         # self.visualize_all([x[0]]+feature_before, [rgb_next]+feature_mid, [rgb_next]+feature_after, [flow]+interFlow)
         # self.visualize_features_all(feature_after)
         # self.visualize_all([x[0]]+feature_before, feature_after, [rgb_next]+feature_next, interFlow)
         # exit(0)  
-        ## 计算监督损失
-        # loss_fn = nn.MSELoss()
-        # loss_fn = LapLoss()
-        # loss_fn = VGGLoss()
-        # feature_loss = sum(loss_fn(f, fn) for f, fn in zip(feature_after, feature_next))
-        # feature_loss = sum(outlier_penalty_loss(f, r=3) for f in feature_after)
-        # photometric_losses = [calc_photometric_loss(f, fn) for f, fn in zip(feature_after, feature_next)]
-        # feature_loss = reduce_photometric_loss(photometric_losses)
-        # feature_loss = loss_fn(feature_after, feature_next)
-      ## decoder
 
+        ## decoder
         y = self.decode_head(feature_after)
         y = F.interpolate(y, size=x[0].shape[2:], mode='bilinear', align_corners=False)
-        # y_ref = self.decode_head(feature_next)
-        # y_ref = F.interpolate(y_ref, size=x[0].shape[2:], mode='bilinear', align_corners=False)
-        # # L2 loss
-        # consistent_loss = F.mse_loss(y, y_ref)
-        # return y, feature_loss, consistent_loss
         return y, feature_loss
 
 
