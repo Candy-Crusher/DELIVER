@@ -98,7 +98,7 @@ class CMNeXt(BaseModel):
         # b c t h w -> b ct h w
 
         # # flow = self.flow_net(event_voxel)
-        # B, C, H ,W = x[0].shape
+        B, C, H ,W = x[0].shape
         # # flow = torch.zeros(B, 2, H, W).to(x[0].device)
         # # 可视化特征和光流
         # # 可视化feature在四个子图里
@@ -106,8 +106,9 @@ class CMNeXt(BaseModel):
         ################ for eraft ################
         bin = 5
         event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-        ev1, ev2 = torch.split(event_voxel, 2, dim=1)
-        flow = self.flow_net(ev1, ev2)[-1]
+        # ev1, ev2 = torch.split(event_voxel, 2, dim=1)
+        # flow = self.flow_net(ev1, ev2)[-1]
+        flow = torch.zeros(B, 2, H, W).to(x[0].device)
         ##########################################
 
         # ################# for bflow ################
@@ -122,13 +123,14 @@ class CMNeXt(BaseModel):
 
         ## backbone
         # feature_before, event_feature_before = self.backbone(x, [event_voxel])
-        metric = self.softsplat_net.netSoftmetric(event_voxel, flow) * 2.0
-        feature_before = self.backbone(x, metric=metric)
+        # metric = self.softsplat_net.netSoftmetric(event_voxel, flow) * 2.0
+        feature_before = self.backbone(x)
+        # feature_before = self.backbone(x, metric=metric)
         # feature_next = self.backbone([rgb_next])
         
         feature_loss = 0
-        feature_after, feature_mid, interFlow = self.softsplat_net(feature_before, x[0], event_voxel, flow, metric)
-        # feature_after, feature_mid, interFlow = self.softsplat_net(feature_before, x[0], event_voxel, flow)
+        # feature_after, feature_mid, interFlow = self.softsplat_net(feature_before, x[0], event_voxel, flow, metric)
+        feature_after, feature_mid, interFlow = self.softsplat_net(feature_before, x[0], event_voxel, flow)
         # feature_after = feature_before
 
         # ## FRAM

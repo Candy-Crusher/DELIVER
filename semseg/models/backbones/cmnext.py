@@ -28,7 +28,7 @@ class Attention(nn.Module):
 
     def forward(self, x: Tensor, H, W, metric: Tensor=None) -> Tensor:
         B, N, C = x.shape
-        if metric is not None:
+        if metric is None:
             q = self.q(x).reshape(B, N, self.head, C // self.head).permute(0, 2, 1, 3)
         else:
             q = self.q(metric).reshape(B, N, self.head, C // self.head).permute(0, 2, 1, 3)
