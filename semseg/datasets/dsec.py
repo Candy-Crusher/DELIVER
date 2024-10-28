@@ -191,8 +191,8 @@ class DSEC(Dataset):
         # dict_keys(['img', 'img_next', 'mask', 'mask_cur', 'event', 'flow', 'flow_inverse'])
         seq_name = Path(sample_path).parts[-2]
         seq_idx = Path(sample_path).parts[-1].split('_')[0]
-        bin = 5
-        sample['event'] = torch.cat([sample['event'][bin*i:bin*(i+1)].mean(0).unsqueeze(0) for i in range(20//bin)], dim=0)
+        # bin = 5
+        # sample['event'] = torch.cat([sample['event'][bin*i:bin*(i+1)].mean(0).unsqueeze(0) for i in range(20//bin)], dim=0)
 
         if self.transform:
             sample = self.transform(sample)

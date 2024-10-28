@@ -21,6 +21,7 @@
 *.json
 *.pth
 *.cfg
+*.ckpt
 !cfg/yolov3*.cfg
 
 storage.googleapis.com
