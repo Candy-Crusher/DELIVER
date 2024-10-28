@@ -75,8 +75,8 @@ class CMNeXt(BaseModel):
         # self.flow_net = EventFlowEstimator(in_channels=4, num_multi_flow=1)
         # self.flow_net = unet.UNet(5, 2, False)
         # self.flow_net = flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=3)
-        # self.flow_net = ERAFT(n_first_channels=2)
-        self.flow_net = RAFTSpline()
+        self.flow_net = ERAFT(n_first_channels=2)
+        # self.flow_net = RAFTSpline()
         # self.event_feature_extractor = nn.Sequential(nn.Conv3d(4, 4, kernel_size=[1,3,3], padding=[0,1,1], stride=1, bias=False),
         #                                 nn.LeakyReLU(negative_slope=0.2, inplace=True),
         #                                 RRDB(dim=4, num_RDB=8, growth_rate=12, num_dense_layer=4, bias=False))
@@ -110,18 +110,22 @@ class CMNeXt(BaseModel):
         # # 可视化feature在四个子图里
         # flow = self.flow_net(x[0], event_voxel)
         ################ for eraft ################
-        # ev1, ev2 = torch.split(event_voxel, 2, dim=1)
-        # flow = self.flow_net(ev1, ev2)[-1]
-        ##########################################
-
-        ################# for bflow ################
-        # 把B C H W -> B C C//2 H W
-        bin = 2
-        ev = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-        flow = self.flow_net(ev)[-1]
-        flow = flow.get_flow_from_reference(1.0)
         bin = 5
         event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+        ev1, ev2 = torch.split(event_voxel, 2, dim=1)
+        flow = self.flow_net(ev1, ev2)[-1]
+        ##########################################
+
+        # ################# for bflow ################
+        # # 把B C H W -> B C C//2 H W
+        # bin = 2
+        # ev = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+        # flow = self.flow_net(ev)[-1]
+        # flow = flow.get_flow_from_reference(1.0)
+        # bin = 5
+        # event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+        # ##########################################
+
         feature_after, feature_mid, interFlow = self.softsplat_net(feature_before, x[0], event_voxel, flow)
         # feature_after = feature_before
 

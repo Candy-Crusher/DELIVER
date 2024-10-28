@@ -58,31 +58,34 @@ def main(cfg, scene, classes, gpu, save_dir):
         model.init_pretrained(model_cfg['PRETRAINED'])
     
     if os.path.isfile(resume_flownet_path):
-        ## for eraft
-        # flownet_checkpoint = torch.load(resume_flownet_path, map_location=torch.device('cpu'))['model']
-        # if 'fnet.conv1.weight' in flownet_checkpoint:
-        #     # delete weights of the first layer
-        #     flownet_checkpoint.pop('fnet.conv1.weight')
-        #     flownet_checkpoint.pop('fnet.conv1.bias')
-        # if 'cnet.conv1.weight' in flownet_checkpoint:
-        #     # delete weights of the second layer
-        #     flownet_checkpoint.pop('cnet.conv1.weight')
-        #     flownet_checkpoint.pop('cnet.conv1.bias')
+        flow_net_type = model_cfg['FLOW_NET']
+        if flow_net_type == 'eraft':
+            ## for eraft
+            flownet_checkpoint = torch.load(resume_flownet_path, map_location=torch.device('cpu'))['model']
+            if 'fnet.conv1.weight' in flownet_checkpoint:
+                # delete weights of the first layer
+                flownet_checkpoint.pop('fnet.conv1.weight')
+                flownet_checkpoint.pop('fnet.conv1.bias')
+            if 'cnet.conv1.weight' in flownet_checkpoint:
+                # delete weights of the second layer
+                flownet_checkpoint.pop('cnet.conv1.weight')
+                flownet_checkpoint.pop('cnet.conv1.bias')
+        elif flow_net_type == 'bflow':
+            # for bflow
+            flownet_checkpoint = torch.load(resume_flownet_path, map_location=torch.device('cpu'))['state_dict']
+            # 过滤掉 'flow_network.' 前缀
+            # flownet_checkpoint = {k.replace('flow_network.', ''): v for k, v in flownet_checkpoint.items()}
+            # 过滤掉 'net.' 前缀
+            flownet_checkpoint = {k.replace('net.', ''): v for k, v in flownet_checkpoint.items()}
+            if 'fnet_ev.conv1.weight' in flownet_checkpoint:
+                # delete weights of the first layer
+                flownet_checkpoint.pop('fnet_ev.conv1.weight')
+                flownet_checkpoint.pop('fnet_ev.conv1.bias')
+            # if 'cnet.conv1.weight' in flownet_checkpoint:
+            #     # delete weights of the second layer
+            #     flownet_checkpoint.pop('cnet.conv1.weight')
+            #     flownet_checkpoint.pop('cnet.conv1.bias')
 
-        # for bflow
-        flownet_checkpoint = torch.load(resume_flownet_path, map_location=torch.device('cpu'))['state_dict']
-        # 过滤掉 'flow_network.' 前缀
-        # flownet_checkpoint = {k.replace('flow_network.', ''): v for k, v in flownet_checkpoint.items()}
-        # 过滤掉 'net.' 前缀
-        flownet_checkpoint = {k.replace('net.', ''): v for k, v in flownet_checkpoint.items()}
-        if 'fnet_ev.conv1.weight' in flownet_checkpoint:
-            # delete weights of the first layer
-            flownet_checkpoint.pop('fnet_ev.conv1.weight')
-            flownet_checkpoint.pop('fnet_ev.conv1.bias')
-        # if 'cnet.conv1.weight' in flownet_checkpoint:
-        #     # delete weights of the second layer
-        #     flownet_checkpoint.pop('cnet.conv1.weight')
-        #     flownet_checkpoint.pop('cnet.conv1.bias')
         msg = model.flow_net.load_state_dict(flownet_checkpoint, strict=False)
         # print("flownet_checkpoint msg: ", msg)
         logger.info(msg)
@@ -113,7 +116,8 @@ def main(cfg, scene, classes, gpu, save_dir):
     # NOTE
     # 冻结除 flow_net 和 softsplat_net 之外的所有层
     for name, param in model.named_parameters():
-        if not 'flow_net' in name and not 'softsplat_net' in name:
+        # if not 'flow_net' in name and not 'softsplat_net' in name:
+        if not 'softsplat_net' in name:
             param.requires_grad = False
     for name, param in model.named_parameters():
         if 'decode_head' in name:

@@ -6,8 +6,10 @@ MODEL:
   BACKBONE      : CMNeXt-B2                                         # model variant
   # PRETRAINED    : 'checkpoints/pretrained/segformer/mit_b2.pth'     # backbone model's weight 
   PRETRAINED        : '/home/xiaoshan/work/adap_v/DELIVER/output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch356_73.55.pth'     # backbone model's weight 
-  # RESUME_FLOWNET: 'dsec.tar'
-  RESUME_FLOWNET: 'E_LU4_BD2.ckpt'
+  FLOW_NET      : 'eraft'
+  RESUME_FLOWNET: 'dsec.tar'
+  # FLOW_NET      : 'bflow'
+  # RESUME_FLOWNET: 'E_LU4_BD2.ckpt'
   # RESUME_FLOWNET: 'flow_network.pth'
   RESUME        : ''                                                # checkpoint file 
   # RESUME_FLOWNET: ''
