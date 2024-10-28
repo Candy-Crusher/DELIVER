@@ -91,12 +91,6 @@ class CMNeXt(BaseModel):
 
     # def forward(self, x: list, event_voxel: Tensor=None, rgb_next: Tensor=None, flow: Tensor=None, psi: Tensor=None) -> list:
     def forward(self, x: list, event_voxel: Tensor=None, rgb_next: Tensor=None, flow: Tensor=None) -> list:
-        ## backbone
-        # feature_before, event_feature_before = self.backbone(x, [event_voxel])
-        feature_before = self.backbone(x)
-        # feature_next = self.backbone([rgb_next])
-        
-        feature_loss = 0
         # # flownet
         # # timelens unet + softsplat
         # event_voxel = event_voxel.unfold(1, 4, 4).permute(0, 4, 1, 2, 3)
@@ -126,7 +120,15 @@ class CMNeXt(BaseModel):
         # event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
         # ##########################################
 
-        feature_after, feature_mid, interFlow = self.softsplat_net(feature_before, x[0], event_voxel, flow)
+        ## backbone
+        # feature_before, event_feature_before = self.backbone(x, [event_voxel])
+        metric = self.softsplat_net.netSoftmetric(event_voxel, flow) * 2.0
+        feature_before = self.backbone(x, metric=metric)
+        # feature_next = self.backbone([rgb_next])
+        
+        feature_loss = 0
+        feature_after, feature_mid, interFlow = self.softsplat_net(feature_before, x[0], event_voxel, flow, metric)
+        # feature_after, feature_mid, interFlow = self.softsplat_net(feature_before, x[0], event_voxel, flow)
         # feature_after = feature_before
 
         # ## FRAM

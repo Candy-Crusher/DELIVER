@@ -26,9 +26,12 @@ class Attention(nn.Module):
             self.sr = nn.Conv2d(dim, dim, sr_ratio, sr_ratio)
             self.norm = nn.LayerNorm(dim)
 
-    def forward(self, x: Tensor, H, W) -> Tensor:
+    def forward(self, x: Tensor, H, W, metric: Tensor=None) -> Tensor:
         B, N, C = x.shape
-        q = self.q(x).reshape(B, N, self.head, C // self.head).permute(0, 2, 1, 3)
+        if metric is not None:
+            q = self.q(x).reshape(B, N, self.head, C // self.head).permute(0, 2, 1, 3)
+        else:
+            q = self.q(metric).reshape(B, N, self.head, C // self.head).permute(0, 2, 1, 3)
 
         if self.sr_ratio > 1:
             x = x.permute(0, 2, 1).reshape(B, C, H, W)
@@ -102,8 +105,8 @@ class Block(nn.Module):
         self.norm2 = nn.LayerNorm(dim)
         self.mlp = MLP(dim, int(dim*4)) if not is_fan else ChannelProcessing(dim, mlp_hidden_dim=int(dim*4))
 
-    def forward(self, x: Tensor, H, W) -> Tensor:
-        x = x + self.drop_path(self.attn(self.norm1(x), H, W))
+    def forward(self, x: Tensor, H, W, metric: Tensor=None) -> Tensor:
+        x = x + self.drop_path(self.attn(self.norm1(x), H, W, metric))
         x = x + self.drop_path(self.mlp(self.norm2(x), H, W))
         return x
 
@@ -287,8 +290,9 @@ class CMNeXt(nn.Module):
         x_f = functools.reduce(torch.max, x_ext)
         return x_f
      
-    def forward(self, x: list, x_ext: list=None) -> list:
-        x_cam = x[0]        
+    def forward(self, x: list, x_ext: list=None, metric: Tensor=None) -> list:
+        x_cam = x[0]
+        metric_ = None
         if self.num_modals > 0:
             x_ext = x[1:]
         B = x_cam.shape[0]
@@ -297,8 +301,11 @@ class CMNeXt(nn.Module):
             outs_event = []
         # stage 1
         x_cam, H, W = self.patch_embed1(x_cam)
+        if metric is not None:
+            metric = torch.nn.functional.interpolate(input=metric, size=(H, W), mode='bilinear', align_corners=False)
+            metric_ = metric.flatten(2).transpose(1, 2).repeat(1, 1, x_cam.shape[-1])
         for blk in self.block1:
-            x_cam = blk(x_cam, H, W)
+            x_cam = blk(x_cam, H, W, metric_)
         x1_cam = self.norm1(x_cam).reshape(B, H, W, -1).permute(0, 3, 1, 2)
         # if self.num_modals > 0:
         if self.with_events:
@@ -318,8 +325,11 @@ class CMNeXt(nn.Module):
 
         # stage 2
         x_cam, H, W = self.patch_embed2(x1_cam)
+        if metric is not None:
+            metric = torch.nn.functional.interpolate(input=metric, size=(H, W), mode='bilinear', align_corners=False)
+            metric_ = metric.flatten(2).transpose(1, 2).repeat(1, 1, x_cam.shape[-1])
         for blk in self.block2:
-            x_cam = blk(x_cam, H, W)
+            x_cam = blk(x_cam, H, W, metric_)
         x2_cam = self.norm2(x_cam).reshape(B, H, W, -1).permute(0, 3, 1, 2)
         # if self.num_modals > 0:
         if self.with_events:
@@ -340,8 +350,11 @@ class CMNeXt(nn.Module):
 
         # stage 3
         x_cam, H, W = self.patch_embed3(x2_cam)
+        if metric is not None:
+            metric = torch.nn.functional.interpolate(input=metric, size=(H, W), mode='bilinear', align_corners=False)
+            metric_ = metric.flatten(2).transpose(1, 2).repeat(1, 1, x_cam.shape[-1])
         for blk in self.block3:
-            x_cam = blk(x_cam, H, W)
+            x_cam = blk(x_cam, H, W, metric_)
         x3_cam = self.norm3(x_cam).reshape(B, H, W, -1).permute(0, 3, 1, 2)
         # if self.num_modals > 0:
         if self.with_events:
@@ -362,8 +375,11 @@ class CMNeXt(nn.Module):
 
         # stage 4
         x_cam, H, W = self.patch_embed4(x3_cam)
+        if metric is not None:
+            metric = torch.nn.functional.interpolate(input=metric, size=(H, W), mode='bilinear', align_corners=False)
+            metric_ = metric.flatten(2).transpose(1, 2).repeat(1, 1, x_cam.shape[-1])
         for blk in self.block4:
-            x_cam = blk(x_cam, H, W)
+            x_cam = blk(x_cam, H, W, metric_)
         x4_cam = self.norm4(x_cam).reshape(B, H, W, -1).permute(0, 3, 1, 2)
         # if self.num_modals > 0:
         if self.with_events:
