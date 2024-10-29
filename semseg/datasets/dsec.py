@@ -123,7 +123,7 @@ class DSEC(Dataset):
         self.ignore_label = 255
         self.modals = modals
 
-        self.duration = 50
+        self.duration = 0
         # self.duration = 100
         if self.duration == 100:
             self.seg_gt_dirname = '/gtFine_t2'

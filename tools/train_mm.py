@@ -146,7 +146,7 @@ def main(cfg, scene, classes, gpu, save_dir):
         model.train()
         if train_cfg['DDP']: sampler.set_epoch(epoch)
 
-        train_loss = 0.0        
+        train_loss = 0.0
         lr = scheduler.get_lr()
         lr = sum(lr) / len(lr)
         pbar = tqdm(enumerate(trainloader), total=iters_per_epoch, desc=f"Epoch: [{epoch+1}/{epochs}] Iter: [{0}/{iters_per_epoch}] LR: {lr:.8f} Loss: {train_loss:.8f}")
