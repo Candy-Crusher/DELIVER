@@ -23,6 +23,7 @@ from semseg.utils.utils import fix_seeds, setup_cudnn, cleanup_ddp, setup_ddp, g
 from semseg.metrics import Metrics
 from val_mm import evaluate
 import numpy as np
+import math
 # import Image
 from PIL import Image
 
@@ -37,17 +38,20 @@ def main(cfg, scene, classes, gpu, save_dir):
     loss_cfg, optim_cfg, sched_cfg = cfg['LOSS'], cfg['OPTIMIZER'], cfg['SCHEDULER']
     epochs, lr = train_cfg['EPOCHS'], optim_cfg['LR']
     resume_path = cfg['MODEL']['RESUME']
-    resume_flownet_path = cfg['MODEL']['RESUME_FLOWNET']
     gpus = int(os.environ['WORLD_SIZE'])
 
     traintransform = get_train_augmentation(train_cfg['IMAGE_SIZE'], seg_fill=dataset_cfg['IGNORE_LABEL'])
     valtransform = get_val_augmentation(eval_cfg['IMAGE_SIZE'])
-
-    trainset = eval(dataset_cfg['NAME'])(dataset_cfg['ROOT'], 'train', classes, traintransform, dataset_cfg['MODALS'])
-    valset = eval(dataset_cfg['NAME'])(dataset_cfg['ROOT'], 'val', classes, valtransform, dataset_cfg['MODALS'])
+    trainset = eval(dataset_cfg['NAME'])(dataset_cfg['ROOT'], 'train', classes, traintransform, dataset_cfg['MODALS'], duration=dataset_cfg['DURATION'])
+    # 计算补齐后的目标长度
+    if len(trainset) % train_cfg['BATCH_SIZE'] != 0:
+        num_batches = math.ceil(len(trainset) / train_cfg['BATCH_SIZE'])
+        target_length = num_batches * train_cfg['BATCH_SIZE']
+        trainset = ExtendedDSEC(trainset, target_length)
+    valset = eval(dataset_cfg['NAME'])(dataset_cfg['ROOT'], 'val', classes, valtransform, dataset_cfg['MODALS'], duration=dataset_cfg['DURATION'])
     class_names = trainset.SEGMENTATION_CONFIGS[classes]["CLASSES"]
 
-    model = eval(model_cfg['NAME'])(model_cfg['BACKBONE'], trainset.n_classes, dataset_cfg['MODALS'])
+    model = eval(model_cfg['NAME'])(model_cfg['BACKBONE'], trainset.n_classes, dataset_cfg['MODALS'], model_cfg['FLOW_NET_FLAG'])
     resume_checkpoint = None
     if os.path.isfile(resume_path):
         resume_checkpoint = torch.load(resume_path, map_location=torch.device('cpu'))
@@ -55,10 +59,17 @@ def main(cfg, scene, classes, gpu, save_dir):
         # print("resume_checkpoint msg: ", msg)
         logger.info(msg)
     else:
-        model.init_pretrained(model_cfg['PRETRAINED'])
+        if model_cfg['BACKBONE_FLAG']:
+            model.init_pretrained(model_cfg['PRETRAINED_BACKBONE'], model_cfg['BACKBONE_FLAG'])
+        else:
+            model.init_pretrained(model_cfg['PRETRAINED'], model_cfg['BACKBONE_FLAG'])
     
-    if os.path.isfile(resume_flownet_path):
+    if model_cfg['FLOW_NET_FLAG']:
+    # if os.path.isfile(resume_flownet_path):
+        print('Loading flownet model...')
         flow_net_type = model_cfg['FLOW_NET']
+        resume_flownet_path = model_cfg['RESUME_FLOWNET']
+
         if flow_net_type == 'eraft':
             ## for eraft
             flownet_checkpoint = torch.load(resume_flownet_path, map_location=torch.device('cpu'))['model']
@@ -92,11 +103,9 @@ def main(cfg, scene, classes, gpu, save_dir):
 
     model = model.to(device)
     
-    iters_per_epoch = len(trainset) // train_cfg['BATCH_SIZE'] // gpus
     loss_fn = get_loss(loss_cfg['NAME'], trainset.ignore_label, None)
     start_epoch = 0
     optimizer = get_optimizer(model, optim_cfg['NAME'], lr, optim_cfg['WEIGHT_DECAY'])
-    scheduler = get_scheduler(sched_cfg['NAME'], optimizer, int((epochs+1)*iters_per_epoch), sched_cfg['POWER'], iters_per_epoch * sched_cfg['WARMUP'], sched_cfg['WARMUP_RATIO'])
 
     if train_cfg['DDP']: 
         sampler = DistributedSampler(trainset, dist.get_world_size(), dist.get_rank(), shuffle=True)
@@ -106,31 +115,34 @@ def main(cfg, scene, classes, gpu, save_dir):
         sampler = RandomSampler(trainset)
         sampler_val = None
     
-    if resume_checkpoint:
-        start_epoch = resume_checkpoint['epoch'] - 1
-        optimizer.load_state_dict(resume_checkpoint['optimizer_state_dict'])
-        scheduler.load_state_dict(resume_checkpoint['scheduler_state_dict'])
-        loss = resume_checkpoint['loss']        
-        best_mIoU = resume_checkpoint['best_miou']
+    # if resume_checkpoint:
+    #     start_epoch = resume_checkpoint['epoch'] - 1
+    #     optimizer.load_state_dict(resume_checkpoint['optimizer_state_dict'])
+    #     scheduler.load_state_dict(resume_checkpoint['scheduler_state_dict'])
+    #     loss = resume_checkpoint['loss']        
+    #     best_mIoU = resume_checkpoint['best_miou']
     
     # NOTE
-    # # 冻结除 flow_net 和 softsplat_net 之外的所有层
-    # for name, param in model.named_parameters():
-    #     if not 'flow_net' in name and not 'softsplat_net' in name:
-    #     # if not 'softsplat_net' in name:
-    #         param.requires_grad = False
-    # for name, param in model.named_parameters():
-    #     if 'decode_head' in name:
-    #         param.requires_grad = True
-    # # 检查哪些参数被冻结了
-    # for name, param in model.named_parameters():
-    #     print(f"{name}: requires_grad={param.requires_grad}")
-    # end
-
+    if not model_cfg['BACKBONE_FLAG']:
+        print('Freezing backbone...')
+        # 冻结除 flow_net 和 softsplat_net 之外的所有层
+        for name, param in model.named_parameters():
+            if not 'flow_net' in name and not 'softsplat_net' in name:
+            # if not 'softsplat_net' in name:
+                param.requires_grad = False
+        for name, param in model.named_parameters():
+            if 'decode_head' in name:
+                param.requires_grad = True
+        # 检查哪些参数被冻结了
+        for name, param in model.named_parameters():
+            print(f"{name}: requires_grad={param.requires_grad}")
+        # end
     trainloader = DataLoader(trainset, batch_size=train_cfg['BATCH_SIZE'], num_workers=num_workers, drop_last=True, pin_memory=True, sampler=sampler, worker_init_fn=lambda worker_id: np.random.seed(3407 + worker_id))
     # trainloader = DataLoader(trainset, batch_size=train_cfg['BATCH_SIZE'], num_workers=0, drop_last=True, pin_memory=True, sampler=sampler, worker_init_fn=lambda worker_id: np.random.seed(3407 + worker_id))
     valloader = DataLoader(valset, batch_size=eval_cfg['BATCH_SIZE'], num_workers=num_workers, pin_memory=True, sampler=sampler_val, worker_init_fn=lambda worker_id: np.random.seed(3407 + worker_id))
     # valloader = DataLoader(valset, batch_size=eval_cfg['BATCH_SIZE'], num_workers=0, pin_memory=True, sampler=sampler_val, worker_init_fn=lambda worker_id: np.random.seed(3407 + worker_id))
+    iters_per_epoch = len(trainloader)
+    scheduler = get_scheduler(sched_cfg['NAME'], optimizer, int((epochs+1)*iters_per_epoch), sched_cfg['POWER'], iters_per_epoch * sched_cfg['WARMUP'], sched_cfg['WARMUP_RATIO'])
 
     scaler = GradScaler(enabled=train_cfg['AMP'])
     if (train_cfg['DDP'] and torch.distributed.get_rank() == 0) or (not train_cfg['DDP']):
@@ -154,14 +166,15 @@ def main(cfg, scene, classes, gpu, save_dir):
             optimizer.zero_grad(set_to_none=True)
             sample = [x.to(device) for x in sample]
             lbl = lbl.to(device)
-            event_voxel = sample[1].to(device)
+            # event_voxel = sample[1].to(device)
             # rgb_next = sample[2].to(device)
             # flow = sample[3].to(device)
-            sample = [sample[0]]
+            # sample = [sample[0]]
             
             with autocast(enabled=train_cfg['AMP']):
                 # logits = model(sample, event_voxel, rgb_next, flow)
-                logits, feature_loss = model(sample, event_voxel)
+                # logits, feature_loss = model(sample, event_voxel)
+                logits, feature_loss = model(sample)
                 # logits, feature_loss = model(sample, event_voxel, rgb_next, flow)
                 loss = loss_fn(logits, lbl) + 100*feature_loss
                 # loss = loss_fn(logits, lbl) + 0.5*feature_loss + 0.5*consistent_loss

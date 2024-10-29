@@ -115,16 +115,20 @@ class DSEC(Dataset):
         }
     }
 
-    def __init__(self, root: str = 'data/DSEC', split: str = 'train', n_classes: int = 11, transform = None, modals = ['img', 'event'], case = None) -> None:
+    def __init__(self, root: str = 'data/DSEC', split: str = 'train', n_classes: int = 11, transform = None, modals = ['img', 'event'], case = None, duration: int=0) -> None:
         super().__init__()
+        self.root = root
+        self.split = split
         assert split in ['train', 'val']
         self.transform = transform
         self.n_classes = n_classes
         self.ignore_label = 255
         self.modals = modals
+        self.case = case
 
-        self.duration = 0
-        # self.duration = 100
+        # self.duration = 0
+        self.duration = duration
+        print(f"Loading DSEC dataset with {self.duration}ms duration.")
         if self.duration == 100:
             self.seg_gt_dirname = '/gtFine_t2'
         elif self.duration == 50:
@@ -149,7 +153,7 @@ class DSEC(Dataset):
             rgb = event_path.replace(f'/startF1_img_event_{self.duration}ms/event_20', '/leftImg8bit').replace('.npy', '.png')
         else:
             rgb = get_new_name(lbl_path, idx_diff=-int(self.duration/50)).replace(self.seg_gt_dirname, '/leftImg8bit').replace('_gtFine_labelTrainIds11.png', '.png')
-        # flow = rgb.replace('/leftImg8bit', '/flow').replace('.png', '.npy')
+        flow = rgb.replace('/leftImg8bit', '/flow').replace('.png', '.npy')
         # rgb_ref = lbl_path.replace(self.seg_gt_dirname, '/leftImg8bit_next').replace('_gtFine_labelTrainIds11.png', '.png')
         # flow_inverse = rgb_ref.replace('/leftImg8bit_next', '/flow_reverse').replace('.png', '.npy')
 
@@ -174,9 +178,9 @@ class DSEC(Dataset):
             event_voxel = np.load(event_path, allow_pickle=True)
             event_voxel = torch.from_numpy(event_voxel[:, :440])
             sample['event'] = event_voxel
-        # flow = np.load(flow, allow_pickle=True)
+        flow = np.load(flow, allow_pickle=True)
         # flow_inverse = np.load(flow_inverse, allow_pickle=True)
-        # sample['flow'] = torch.from_numpy(flow[:, :440])
+        sample['flow'] = torch.from_numpy(flow[:, :440])
         # sample['flow_inverse'] = torch.from_numpy(flow_inverse[:, :440])
 
         # # # save dict
@@ -200,8 +204,8 @@ class DSEC(Dataset):
         else:
             label = sample['mask']
             del sample['mask']
-            # flow = sample['flow']
-            # del sample['flow']
+            flow = sample['flow']
+            del sample['flow']
         label = self.encode(label.squeeze().numpy()).long()
         # label_ref = sample['mask_cur']
         # del sample['mask_cur']
@@ -209,8 +213,6 @@ class DSEC(Dataset):
         if self.duration != 0:
             event_voxel = sample['event']
             del sample['event']
-        else:
-            event_voxel = torch.zeros_like(label)
         # img_next = sample['img_next']
         # del sample['img_next']
 
@@ -218,10 +220,9 @@ class DSEC(Dataset):
         # del sample['flow_inverse']
 
         sample = [sample[k] for k in self.modals]
-        sample.append(event_voxel)
-        # sample.append(img_next)
-        # sample.append(flow)
-        # sample.append(label_ref)
+        if self.duration != 0:
+            sample.append(event_voxel)
+            sample.append(flow)
         return seq_name, seq_idx, sample, label
 
     def _open_img(self, file):
@@ -236,6 +237,36 @@ class DSEC(Dataset):
     def encode(self, label: Tensor) -> Tensor:
         return torch.from_numpy(label)
 
+class ExtendedDSEC(DSEC):
+    def __init__(self, original_dataset, target_length):
+        """
+        original_dataset: 原始的 DSEC 数据集实例
+        target_length: 需要扩展到的目标长度
+        """
+        # 调用 DSEC 的初始化
+        super().__init__(
+            root=original_dataset.root,
+            split=original_dataset.split,
+            n_classes=original_dataset.n_classes,
+            transform=original_dataset.transform,
+            modals=original_dataset.modals,
+            case=original_dataset.case,
+            duration=original_dataset.duration
+        )
+        
+        # 保存原始数据集的长度和目标长度
+        self.original_dataset = original_dataset
+        self.original_length = len(original_dataset)
+        self.target_length = target_length
+
+    def __len__(self):
+        # 返回扩展后的目标长度
+        return self.target_length
+
+    def __getitem__(self, index):
+        # 如果 idx 超过原始数据长度，则循环使用原始数据
+        return super().__getitem__(index % self.original_length)
+    
 if __name__ == '__main__':
     cases = ['cloud', 'fog', 'night', 'rain', 'sun', 'motionblur', 'overexposure', 'underexposure', 'lidarjitter', 'eventlowres']
     traintransform = get_train_augmentation((1024, 1024), seg_fill=255)

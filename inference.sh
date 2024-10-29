@@ -1,5 +1,5 @@
 export PYTHONPATH="/home/xiaoshan/work/adap_v/DELIVER"
-export CUDA_VISIBLE_DEVICES=3
+export CUDA_VISIBLE_DEVICES=0
 eval_dataset='day'
 input_type='rgb'
 python tools/val_mm.py \

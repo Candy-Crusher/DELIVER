@@ -22,55 +22,65 @@ import matplotlib.pyplot as plt
 import moviepy.editor
     
 class CMNeXt(BaseModel):
-    def __init__(self, backbone: str = 'CMNeXt-B0', num_classes: int = 25, modals: list = ['img', 'depth', 'event', 'lidar']) -> None:
-        super().__init__(backbone, num_classes, modals, with_events=False)
+    def __init__(self, backbone: str = 'CMNeXt-B0', num_classes: int = 25, modals: list = ['img', 'depth', 'event', 'lidar'], flow_net_flag: bool=False) -> None:
+        super().__init__(backbone, num_classes, modals, with_events=False, flow_net_flag=flow_net_flag)
         self.decode_head = SegFormerHead(self.backbone.channels, 256 if 'B0' in backbone or 'B1' in backbone else 512, num_classes)
-        # self.flow_net = flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=3)
-        # # self.flow_nets = nn.ModuleList(
-        #     flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=feature_dims[i])
-        #     for i in range(len(feature_dims))
-        # )
-        # self.flow_net = ERAFT(n_first_channels=2)
-        # self.flow_net = RAFTSpline()        
+        if self.flow_net_flag:
+            # self.flow_net = flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=3)
+            # # self.flow_nets = nn.ModuleList(
+            #     flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=feature_dims[i])
+            #     for i in range(len(feature_dims))
+            # )
+            self.flow_net = ERAFT(n_first_channels=2)
+            # self.flow_net = RAFTSpline()        
 
-        # feature_dims = [64, 128, 320, 512]
-        # self.softsplat_net = Synthesis(feature_dims, activation='PReLU')
+        feature_dims = [64, 128, 320, 512]
+        self.softsplat_net = Synthesis(feature_dims, activation='PReLU')
 
         self.apply(self._init_weights)
 
-    def forward(self, x: list, event_voxel: Tensor=None, rgb_next: Tensor=None, flow: Tensor=None) -> list:
+    def forward(self, x: list,  rgb_next: Tensor=None) -> list:
+        if len(x) != 1:
+            event_voxel = x[1]
+            if not self.flow_net_flag:
+                bin = 5
+                event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                flow = x[2]
+            else:
+                ################ zero flow ################
+                # B, C, H ,W = x[0].shape
+                # flow = torch.zeros(B, 2, H, W).to(x[0].device)
+                ##########################################
 
-        ################ zero flow ################
-        # B, C, H ,W = x[0].shape
-        # flow = torch.zeros(B, 2, H, W).to(x[0].device)
-        ##########################################
+                ################ for eraft ################
+                bin = 5
+                event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                ev1, ev2 = torch.split(event_voxel, 2, dim=1)
+                flow = self.flow_net(ev1, ev2)[-1]
+                ##########################################
 
-        ################ for eraft ################
-        # bin = 5
-        # event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-        # ev1, ev2 = torch.split(event_voxel, 2, dim=1)
-        # flow = self.flow_net(ev1, ev2)[-1]
-        ##########################################
+                # ################# for bflow ################
+                # # 把B C H W -> B C C//2 H W
+                # bin = 2
+                # ev = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                # flow = self.flow_net(ev)[-1]
+                # flow = flow.get_flow_from_reference(1.0)
+                # bin = 5
+                # event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                # ##########################################
 
-        # ################# for bflow ################
-        # # 把B C H W -> B C C//2 H W
-        # bin = 2
-        # ev = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-        # flow = self.flow_net(ev)[-1]
-        # flow = flow.get_flow_from_reference(1.0)
-        # bin = 5
-        # event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-        # ##########################################
-
-        ## backbone
-        metric = None
-        # metric = self.softsplat_net.netSoftmetric(event_voxel, flow) * 2.0
-        feature_before = self.backbone(x, metric=metric)
-        # feature_next = self.backbone([rgb_next])
-        
-        feature_loss = 0
-        # feature_after, feature_mid, interFlow = self.softsplat_net(feature_before, x[0], event_voxel, flow, metric)
-        feature_after = feature_before
+            ## backbone
+            metric = None
+            # metric = self.softsplat_net.netSoftmetric(event_voxel, flow) * 2.0
+            feature_before = self.backbone(x, metric=metric)
+            # feature_next = self.backbone([rgb_next])
+            
+            feature_loss = 0
+            feature_after, feature_mid, interFlow = self.softsplat_net(feature_before, x[0], event_voxel, flow, metric)
+        elif len(x) == 1:
+            feature_before = self.backbone(x)
+            feature_loss = 0
+            feature_after = feature_before
 
         # ################# for FRMA ################
         # # 变成[[0,1,2,3], [4,5,6,7], [8,9,10,11], [12,13,14,15], [16,17,18,19]]这样 B C=4 T=5 H W的shape
@@ -168,7 +178,7 @@ class CMNeXt(BaseModel):
         plt.savefig('features_and_flow.png', dpi=150)
         plt.show()
 
-    def init_pretrained(self, pretrained: str = None) -> None:
+    def init_pretrained(self, pretrained: str = None, backbone_flag: bool=True) -> None:
         if pretrained:
             if self.backbone.num_modals > 0:
                 load_dualpath_model(self.backbone, pretrained)
@@ -179,8 +189,10 @@ class CMNeXt(BaseModel):
                 if 'model' in checkpoint.keys():
                     checkpoint = checkpoint['model']
                 # NOTE
-                msg = self.backbone.load_state_dict(checkpoint, strict=False)
-                # msg = self.load_state_dict(checkpoint, strict=False)
+                if backbone_flag:
+                    msg = self.backbone.load_state_dict(checkpoint, strict=False)
+                else:
+                    msg = self.load_state_dict(checkpoint, strict=False)
                 print("init_pretrained message: ", msg)
     
     def viz2(self, flow, x, rgb_next):

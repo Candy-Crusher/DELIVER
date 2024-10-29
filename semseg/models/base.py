@@ -35,12 +35,13 @@ def load_dualpath_model(model, model_file):
     
 
 class BaseModel(nn.Module):
-    def __init__(self, backbone: str = 'MiT-B0', num_classes: int = 19, modals: list = ['rgb', 'depth', 'event', 'lidar'], with_events=False) -> None:
+    def __init__(self, backbone: str = 'MiT-B0', num_classes: int = 19, modals: list = ['rgb', 'depth', 'event', 'lidar'], with_events=False, flow_net_flag: bool=False) -> None:
         super().__init__()
         backbone, variant = backbone.split('-')
         self.backbone = eval(backbone)(variant, modals, with_events)
         # self.backbone = eval(backbone)(variant)
         self.modals = modals
+        self.flow_net_flag = flow_net_flag
 
     def _init_weights(self, m: nn.Module) -> None:
         if isinstance(m, nn.Linear):
