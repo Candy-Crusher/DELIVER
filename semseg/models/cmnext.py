@@ -31,7 +31,7 @@ class CMNeXt(BaseModel):
             #     flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=feature_dims[i])
             #     for i in range(len(feature_dims))
             # )
-            self.flow_net = ERAFT(n_first_channels=10)
+            self.flow_net = ERAFT(n_first_channels=2)
             # self.flow_net = RAFTSpline()        
 
         feature_dims = [64, 128, 320, 512]
@@ -55,11 +55,11 @@ class CMNeXt(BaseModel):
                 ##########################################
             else:
                 ################ for eraft ################
-                # bin = 5
-                # event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-                ev1, ev2 = torch.split(event_voxel, event_voxel.shape[1]//2, dim=1)
                 bin = 5
                 event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                ev1, ev2 = torch.split(event_voxel, event_voxel.shape[1]//2, dim=1)
+                # bin = 5
+                # event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
                 flow = self.flow_net(ev1, ev2)[-1]
                 ##########################################
 

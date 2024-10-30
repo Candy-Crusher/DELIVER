@@ -180,6 +180,14 @@ def main(cfg, scene, classes, gpu, save_dir):
                 # loss = loss_fn(logits, lbl) + 0.5*feature_loss + 0.5*consistent_loss
 
             scaler.scale(loss).backward()
+            # torch.nn.utils.clip_grad_value_(model.parameters(), clip_value=0.5)
+            # 在优化器步骤之前，我们使用梯度裁剪
+            # # 对于模型的每个参数，计算其梯度的L2范数
+            # for param in model.parameters():
+            #     if param.grad is not None:
+            #         grad_norm = torch.norm(param.grad, p=2)
+            #         print(grad_norm)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=20, norm_type=2)
             scaler.step(optimizer)
             scaler.update()
             scheduler.step()
