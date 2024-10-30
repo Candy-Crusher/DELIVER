@@ -31,7 +31,7 @@ class CMNeXt(BaseModel):
             #     flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=feature_dims[i])
             #     for i in range(len(feature_dims))
             # )
-            self.flow_net = ERAFT(n_first_channels=2)
+            self.flow_net = ERAFT(n_first_channels=10)
             # self.flow_net = RAFTSpline()        
 
         feature_dims = [64, 128, 320, 512]
@@ -45,17 +45,21 @@ class CMNeXt(BaseModel):
             if not self.flow_net_flag:
                 bin = 5
                 event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-                flow = x[2]
-            else:
-                ################ zero flow ################
-                # B, C, H ,W = x[0].shape
-                # flow = torch.zeros(B, 2, H, W).to(x[0].device)
+                ################ raft flow ################
+                # flow = x[2]
                 ##########################################
 
+                ################ zero flow ################
+                B, C, H ,W = x[0].shape
+                flow = torch.zeros(B, 2, H, W).to(x[0].device)
+                ##########################################
+            else:
                 ################ for eraft ################
+                # bin = 5
+                # event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                ev1, ev2 = torch.split(event_voxel, event_voxel.shape[1]//2, dim=1)
                 bin = 5
                 event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-                ev1, ev2 = torch.split(event_voxel, 2, dim=1)
                 flow = self.flow_net(ev1, ev2)[-1]
                 ##########################################
 
