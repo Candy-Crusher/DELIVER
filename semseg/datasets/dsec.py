@@ -149,8 +149,9 @@ class DSEC(Dataset):
         lbl_path = str(self.files[index])
         # lbl_path_ref = get_new_name(lbl_path, idx_diff=-int(self.duration/50)).replace(self.seg_gt_dirname, '/gtFine_t0')
         if self.duration != 0:
-            event_path = get_new_name(lbl_path, idx_diff=-int(self.duration/50)).replace(self.seg_gt_dirname, f'/startF1_img_event_{self.duration}ms/event_20').replace('_gtFine_labelTrainIds11.png', '.npy')
-            rgb = event_path.replace(f'/startF1_img_event_{self.duration}ms/event_20', '/leftImg8bit').replace('.npy', '.png')
+            bin = 20
+            event_path = get_new_name(lbl_path, idx_diff=-int(self.duration/50)).replace(self.seg_gt_dirname, f'/startF1_img_event_{self.duration}ms/event_{bin}').replace('_gtFine_labelTrainIds11.png', '.npy')
+            rgb = event_path.replace(f'/startF1_img_event_{self.duration}ms/event_{bin}', '/leftImg8bit').replace('.npy', '.png')
         else:
             rgb = get_new_name(lbl_path, idx_diff=-int(self.duration/50)).replace(self.seg_gt_dirname, '/leftImg8bit').replace('_gtFine_labelTrainIds11.png', '.png')
         flow = rgb.replace('/leftImg8bit', '/flow').replace('.png', '.npy')
