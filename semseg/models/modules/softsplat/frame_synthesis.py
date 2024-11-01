@@ -553,7 +553,7 @@ class Synthesis(torch.nn.Module):
                 ])
             # end
 
-            def forward(self, tenEncone, tenMetricone, tenForward, event_voxel=None, rgb=None):
+            def forward(self, tenEncone, tenMetricone, tenForward, event_voxel=None):
                 tenOutput = []
                 tenMid = []
                 tenFlow = []
@@ -608,15 +608,14 @@ class Synthesis(torch.nn.Module):
         self.netWarp = Warp(feature_dims, activation_layer=self.activation_layer)
 
 
-    def forward(self, tenEncone, rgb, event_voxel, tenForward, tenMetricone=None):
+    def forward(self, tenEncone, event_voxel, tenForward):
     # def forward(self, tenEncone, tenForward, event_voxel, tenEncone_event=None, psi=None):
         # tenMetricone = torch.sqrt(torch.square(tenForward[:, 0, :, :] + tenForward[:, 1, :, :])).unsqueeze(1)
         # tenForward = self.netFlow(event_voxel, rgb) * 2.0
-        if tenMetricone is None:
-            tenMetricone = self.netSoftmetric(event_voxel, tenForward) * 2.0
+        tenMetricone = self.netSoftmetric(event_voxel, tenForward) * 2.0
         # tenMetricone = self.netSoftmetric(rgb, event_voxel, tenForward) * self.alpha_s
         # tenMetricone, tenScale = torch.chunk(self.netSoftmetric(rgb, event_voxel, tenForward) * 2.0, chunks=2, dim=1)
-        tenWarp, tenMid, tenFlow = self.netWarp(tenEncone, tenMetricone, tenForward, event_voxel, rgb)
+        tenWarp, tenMid, tenFlow = self.netWarp(tenEncone, tenMetricone, tenForward, event_voxel)
 
         return tenWarp, tenMid, tenFlow
 

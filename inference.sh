@@ -6,8 +6,10 @@ python tools/val_mm.py \
     --cfg configs/dsec_${input_type}_${eval_dataset}.yaml \
     --scene dsec_${input_type}_${eval_dataset} \
     --classes 11 \
-    --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch205_73.12.pth  # eraft 50 ms
+    --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch243_71.3.pth  # raft 100ms
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch288_71.66.pth  # eraft 100 ms
+    # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch205_73.12.pth  # eraft 50 ms
+    # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch246_72.87.pth  # raft 50ms
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch246_72.69.pth
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch270_71.89.pth
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch253_71.74.pth

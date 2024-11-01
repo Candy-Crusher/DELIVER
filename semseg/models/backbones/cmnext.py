@@ -302,8 +302,9 @@ class CMNeXt(nn.Module):
         # stage 1
         x_cam, H, W = self.patch_embed1(x_cam)
         if metric is not None:
-            metric = torch.nn.functional.interpolate(input=metric, size=(H, W), mode='bilinear', align_corners=False)
-            metric_ = metric.flatten(2).transpose(1, 2).repeat(1, 1, x_cam.shape[-1])
+            metric_ = metric[0].flatten(2).transpose(1, 2)
+        #     metric = torch.nn.functional.interpolate(input=metric, size=(H, W), mode='bilinear', align_corners=False)
+        #     metric_ = metric.flatten(2).transpose(1, 2).repeat(1, 1, x_cam.shape[-1])
         for blk in self.block1:
             x_cam = blk(x_cam, H, W, metric_)
         x1_cam = self.norm1(x_cam).reshape(B, H, W, -1).permute(0, 3, 1, 2)
@@ -326,8 +327,9 @@ class CMNeXt(nn.Module):
         # stage 2
         x_cam, H, W = self.patch_embed2(x1_cam)
         if metric is not None:
-            metric = torch.nn.functional.interpolate(input=metric, size=(H, W), mode='bilinear', align_corners=False)
-            metric_ = metric.flatten(2).transpose(1, 2).repeat(1, 1, x_cam.shape[-1])
+            metric_ = metric[1].flatten(2).transpose(1, 2)
+            # metric = torch.nn.functional.interpolate(input=metric, size=(H, W), mode='bilinear', align_corners=False)
+            # metric_ = metric.flatten(2).transpose(1, 2).repeat(1, 1, x_cam.shape[-1])
         for blk in self.block2:
             x_cam = blk(x_cam, H, W, metric_)
         x2_cam = self.norm2(x_cam).reshape(B, H, W, -1).permute(0, 3, 1, 2)
@@ -351,8 +353,9 @@ class CMNeXt(nn.Module):
         # stage 3
         x_cam, H, W = self.patch_embed3(x2_cam)
         if metric is not None:
-            metric = torch.nn.functional.interpolate(input=metric, size=(H, W), mode='bilinear', align_corners=False)
-            metric_ = metric.flatten(2).transpose(1, 2).repeat(1, 1, x_cam.shape[-1])
+            metric_ = metric[2].flatten(2).transpose(1, 2)
+            # metric = torch.nn.functional.interpolate(input=metric, size=(H, W), mode='bilinear', align_corners=False)
+            # metric_ = metric.flatten(2).transpose(1, 2).repeat(1, 1, x_cam.shape[-1])
         for blk in self.block3:
             x_cam = blk(x_cam, H, W, metric_)
         x3_cam = self.norm3(x_cam).reshape(B, H, W, -1).permute(0, 3, 1, 2)
@@ -376,8 +379,9 @@ class CMNeXt(nn.Module):
         # stage 4
         x_cam, H, W = self.patch_embed4(x3_cam)
         if metric is not None:
-            metric = torch.nn.functional.interpolate(input=metric, size=(H, W), mode='bilinear', align_corners=False)
-            metric_ = metric.flatten(2).transpose(1, 2).repeat(1, 1, x_cam.shape[-1])
+            metric_ = metric[3].flatten(2).transpose(1, 2)
+            # metric = torch.nn.functional.interpolate(input=metric, size=(H, W), mode='bilinear', align_corners=False)
+            # metric_ = metric.flatten(2).transpose(1, 2).repeat(1, 1, x_cam.shape[-1])
         for blk in self.block4:
             x_cam = blk(x_cam, H, W, metric_)
         x4_cam = self.norm4(x_cam).reshape(B, H, W, -1).permute(0, 3, 1, 2)

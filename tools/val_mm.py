@@ -209,7 +209,7 @@ def main(cfg, scene, classes, model_path):
     eval_path = os.path.join(os.path.dirname(model_path), '{}_eval_{}.txt'.format(scene, exp_time))
 
     for case in cases:
-        dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'], 'val', classes, transform, cfg['DATASET']['MODALS'], case, duration=cfg['DATASET']['DURATION'])
+        dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'], 'val', classes, transform, cfg['DATASET']['MODALS'], case, duration=cfg['DATASET']['DURATION'], flow_net_flag=cfg['MODEL']['FLOW_NET_FLAG'])
         # --- test set
         # dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'], 'test', transform, cfg['DATASET']['MODALS'], case)
 

@@ -115,7 +115,7 @@ class DSEC(Dataset):
         }
     }
 
-    def __init__(self, root: str = 'data/DSEC', split: str = 'train', n_classes: int = 11, transform = None, modals = ['img', 'event'], case = None, duration: int=0) -> None:
+    def __init__(self, root: str = 'data/DSEC', split: str = 'train', n_classes: int = 11, transform = None, modals = ['img', 'event'], case = None, duration: int=0, flow_net_flag: bool=False) -> None:
         super().__init__()
         self.root = root
         self.split = split
@@ -126,15 +126,12 @@ class DSEC(Dataset):
         self.modals = modals
         self.case = case
 
-        # self.duration = 0
         self.duration = duration
-        print(f"Loading DSEC dataset with {self.duration}ms duration.")
-        if self.duration == 100:
-            self.seg_gt_dirname = '/gtFine_t2'
-        elif self.duration == 50:
-            self.seg_gt_dirname = '/gtFine_t1'
-        elif self.duration == 0:
-            self.seg_gt_dirname = '/gtFine_t0'
+        self.time_window = duration//50
+        self.flow_net_flag = flow_net_flag
+        self.iterframe_test = False
+        print(f"Loading DSEC dataset with {duration}ms duration.")
+        self.seg_gt_dirname = f'/gtFine_t{self.time_window}'
         # self.files = sorted(glob.glob(os.path.join(*[root, 'leftImg8bit', split, '*', '*.png'])))
         self.files = sorted(glob.glob(os.path.join(*[root, self.seg_gt_dirname[1:], split, '*', '*_gtFine_labelTrainIds11.png'])))
         # self.files = sorted(glob.glob(os.path.join(*[root, 'sample', split, '*', '*.npy'])))
@@ -146,15 +143,46 @@ class DSEC(Dataset):
         return len(self.files)
     
     def __getitem__(self, index: int) -> Tuple[Tensor, Tensor]:
+        sample = {}
         lbl_path = str(self.files[index])
-        # lbl_path_ref = get_new_name(lbl_path, idx_diff=-int(self.duration/50)).replace(self.seg_gt_dirname, '/gtFine_t0')
-        if self.duration != 0:
+        if self.time_window != 0:
             bin = 20
-            event_path = get_new_name(lbl_path, idx_diff=-int(self.duration/50)).replace(self.seg_gt_dirname, f'/startF1_img_event_{self.duration}ms/event_{bin}').replace('_gtFine_labelTrainIds11.png', '.npy')
-            rgb = event_path.replace(f'/startF1_img_event_{self.duration}ms/event_{bin}', '/leftImg8bit').replace('.npy', '.png')
+            if self.iterframe_test:
+                if bin==20:
+                    start_t = 1
+                    rgb_path = get_new_name(lbl_path, idx_diff=start_t-self.time_window).replace(self.seg_gt_dirname, f'/leftImg8bit_t{start_t}').replace('_gtFine_labelTrainIds11.png', '.png')
+                    ### event ###
+                    event_path = get_new_name(lbl_path, idx_diff=0-self.time_window).replace(self.seg_gt_dirname, f'/event_t0_t{self.time_window}/event_40').replace('_gtFine_labelTrainIds11.png', '.npy')
+                    event_voxel = np.load(event_path, allow_pickle=True)
+                    if start_t == 1:
+                        event_voxel = event_voxel[20:]
+                    sample['event'] = torch.from_numpy(event_voxel[:, :440])
+                    ### flow ###
+                    if not self.flow_net_flag:
+                        flow_path_t0_t1 = get_new_name(lbl_path, idx_diff=0-self.time_window).replace(self.seg_gt_dirname, f'/flow_t0_t1').replace('_gtFine_labelTrainIds11.png', '.npy')
+                        flow_path_t1_t2 = get_new_name(lbl_path, idx_diff=1-self.time_window).replace(self.seg_gt_dirname, f'/flow_t1_t2').replace('_gtFine_labelTrainIds11.png', '.npy')
+                        flow_t0_t1 = np.load(flow_path_t0_t1, allow_pickle=True)
+                        flow_t1_t2 = np.load(flow_path_t1_t2, allow_pickle=True)
+                        if start_t == 1:
+                            flow = flow_t1_t2
+                        elif start_t == 0:
+                            flow = np.concatenate([flow_t0_t1, flow_t1_t2], axis=0)
+                        sample['flow'] = torch.from_numpy(flow[:, :440])
+            else:
+                rgb_path = get_new_name(lbl_path, idx_diff=0-self.time_window).replace(self.seg_gt_dirname, f'/leftImg8bit_t0').replace('_gtFine_labelTrainIds11.png', '.png')
+                ### event ###
+                event_path = get_new_name(lbl_path, idx_diff=-0-self.time_window).replace(self.seg_gt_dirname, f'/event_t0_t{self.time_window}/event_{bin}').replace('_gtFine_labelTrainIds11.png', '.npy')
+                event_voxel = np.load(event_path, allow_pickle=True)
+                sample['event'] = torch.from_numpy(event_voxel[:, :440])
+                ### flow ###
+                if not self.flow_net_flag:
+                    flow_path = rgb_path.replace('/leftImg8bit_t0', f'/flow_t0_t{self.time_window}').replace('.png', '.npy')
+                    flow = np.load(flow_path, allow_pickle=True)
+                    sample['flow'] = torch.from_numpy(flow[:, :440])
         else:
-            rgb = get_new_name(lbl_path, idx_diff=-int(self.duration/50)).replace(self.seg_gt_dirname, '/leftImg8bit').replace('_gtFine_labelTrainIds11.png', '.png')
-        flow = rgb.replace('/leftImg8bit', '/flow').replace('.png', '.npy')
+            rgb_path = lbl_path.replace(self.seg_gt_dirname, '/leftImg8bit_t0').replace('_gtFine_labelTrainIds11.png', '.png')
+
+        # lbl_path_t0 = get_new_name(lbl_path, idx_diff=-self.time_window).replace(self.seg_gt_dirname, '/gtFine_t0')
         # rgb_ref = lbl_path.replace(self.seg_gt_dirname, '/leftImg8bit_next').replace('_gtFine_labelTrainIds11.png', '.png')
         # flow_inverse = rgb_ref.replace('/leftImg8bit_next', '/flow_reverse').replace('.png', '.npy')
 
@@ -164,28 +192,19 @@ class DSEC(Dataset):
             lbl_path = lbl_path.replace('_gtFine_labelTrainIds11.png', '_gtFine_labelTrainIds.png')
         # lbl_path = lbl_path.split('.')[0]  # 获取文件名的基础部分（去掉扩展名）
         # lbl_path = f"{lbl_path}_gtFine_labelTrainIds11.png"  # 添加后缀并重新组合
-        seq_name = Path(rgb).parts[-2]
-        seq_idx = Path(rgb).parts[-1].split('_')[0]
+        seq_name = Path(rgb_path).parts[-2]
+        seq_idx = Path(rgb_path).parts[-1].split('_')[0]
 
-        sample = {}
-        sample['img'] = io.read_image(rgb)[:3, ...][:, :440]
+        sample['img'] = io.read_image(rgb_path)[:3, ...][:, :440]
         # H, W = sample['img'].shape[1:]
         # sample['img_next'] = io.read_image(rgb_ref)[:3, ...][:, :440]
         label = io.read_image(lbl_path)[0,...].unsqueeze(0)
-        # label_ref = io.read_image(lbl_path_ref)[0,...].unsqueeze(0)
+        # label_ref = io.read_image(lbl_path_t0)[0,...].unsqueeze(0)
         sample['mask'] = label[:, :440]
         # sample['mask_cur'] = label_ref[:, :440]
-        if self.duration != 0:
-            event_voxel = np.load(event_path, allow_pickle=True)
-            event_voxel = torch.from_numpy(event_voxel[:, :440])
-            sample['event'] = event_voxel
-        flow = np.load(flow, allow_pickle=True)
-        # flow_inverse = np.load(flow_inverse, allow_pickle=True)
-        sample['flow'] = torch.from_numpy(flow[:, :440])
-        # sample['flow_inverse'] = torch.from_numpy(flow_inverse[:, :440])
 
         # # # save dict
-        # # np.save(event_path.replace(f'/startF1_img_event_{self.duration}ms/event_20', '/sample'), sample)
+        # # np.save(event_path.replace(f'/event_t0_t{self.time_window}/event_20', '/sample'), sample)
         # sample_path = str(self.files[index])
         # sample = np.load(sample_path, allow_pickle=True).item()
         # # dict_keys(['img', 'img_next', 'mask', 'mask_cur', 'event', 'flow', 'flow_inverse'])
@@ -196,22 +215,19 @@ class DSEC(Dataset):
 
         if self.transform:
             sample = self.transform(sample)
-        if random.random() < 0:
-            label = sample['mask_cur']
-            del sample['mask_cur']
-            # # flow zero
-            # flow = torch.zeros_like(sample['flow'])
-            # del sample['flow']
-        else:
-            label = sample['mask']
-            del sample['mask']
-            flow = sample['flow']
-            del sample['flow']
+
+        label = sample['mask']
+        del sample['mask']
         label = self.encode(label.squeeze().numpy()).long()
         # label_ref = sample['mask_cur']
         # del sample['mask_cur']
         # label_ref = self.encode(label_ref.squeeze().numpy()).long()
-        if self.duration != 0:
+
+        if not self.flow_net_flag:
+            flow = sample['flow']
+            del sample['flow']
+
+        if self.time_window != 0:
             event_voxel = sample['event']
             del sample['event']
         # img_next = sample['img_next']
@@ -221,9 +237,10 @@ class DSEC(Dataset):
         # del sample['flow_inverse']
 
         sample = [sample[k] for k in self.modals]
-        if self.duration != 0:
+        if self.time_window != 0:
             sample.append(event_voxel)
-            sample.append(flow)
+            if not self.flow_net_flag:
+                sample.append(flow)
         return seq_name, seq_idx, sample, label
 
     def _open_img(self, file):
@@ -252,7 +269,8 @@ class ExtendedDSEC(DSEC):
             transform=original_dataset.transform,
             modals=original_dataset.modals,
             case=original_dataset.case,
-            duration=original_dataset.duration
+            duration=original_dataset.duration,
+            flow_net_flag=original_dataset.flow_net_flag
         )
         
         # 保存原始数据集的长度和目标长度

@@ -32,55 +32,64 @@ class CMNeXt(BaseModel):
             #     for i in range(len(feature_dims))
             # )
             self.flow_net = ERAFT(n_first_channels=2)
-            # self.flow_net = RAFTSpline()        
+            # self.flow_net = RAFTSpline()
 
         feature_dims = [64, 128, 320, 512]
         self.softsplat_net = Synthesis(feature_dims, activation='PReLU')
+        # self.fusion_attens = nn.ModuleList(
+        #     Attention(dim=feature_dims[i], num_heads=8, bias=False)
+        #     for i in range(len(feature_dims))
+        # )
 
         self.apply(self._init_weights)
 
     def forward(self, x: list,  rgb_next: Tensor=None) -> list:
         if len(x) != 1:
-            event_voxel = x[1]
-            if not self.flow_net_flag:
-                bin = 5
-                event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-                ################ raft flow ################
-                # flow = x[2]
-                ##########################################
+            event_voxel_total = x[1]
+            for it in range(event_voxel_total.shape[1]//20):
+                event_voxel = event_voxel_total[:, 20*it:20*(it+1)]
+                if not self.flow_net_flag:
+                    bin = 5
+                    event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                    ################ raft flow ################
+                    flow = x[2][:, 2*it:2*(it+1)]
+                    ##########################################
 
-                ################ zero flow ################
-                B, C, H ,W = x[0].shape
-                flow = torch.zeros(B, 2, H, W).to(x[0].device)
-                ##########################################
-            else:
-                ################ for eraft ################
-                bin = 5
-                event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-                ev1, ev2 = torch.split(event_voxel, event_voxel.shape[1]//2, dim=1)
-                # bin = 5
-                # event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-                flow = self.flow_net(ev1, ev2)[-1]
-                ##########################################
+                    ################ zero flow ################
+                    # B, C, H ,W = x[0].shape
+                    # flow = torch.zeros(B, 2, H, W).to(x[0].device)
+                    ##########################################
+                else:
+                    ################ for eraft ################
+                    bin = 5
+                    event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                    ev1, ev2 = torch.split(event_voxel, event_voxel.shape[1]//2, dim=1)
+                    # bin = 5
+                    # event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                    flow = self.flow_net(ev1, ev2)[-1]
+                    ##########################################
 
-                # ################# for bflow ################
-                # # 把B C H W -> B C C//2 H W
-                # bin = 2
-                # ev = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-                # flow = self.flow_net(ev)[-1]
-                # flow = flow.get_flow_from_reference(1.0)
-                # bin = 5
-                # event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-                # ##########################################
+                    # ################# for bflow ################
+                    # # 把B C H W -> B C C//2 H W
+                    # bin = 2
+                    # ev = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                    # flow = self.flow_net(ev)[-1]
+                    # flow = flow.get_flow_from_reference(1.0)
+                    # bin = 5
+                    # event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                    # ##########################################
 
-            ## backbone
-            metric = None
-            # metric = self.softsplat_net.netSoftmetric(event_voxel, flow) * 2.0
-            feature_before = self.backbone(x, metric=metric)
-            # feature_next = self.backbone([rgb_next])
-            
-            feature_loss = 0
-            feature_after, feature_mid, interFlow = self.softsplat_net(feature_before, x[0], event_voxel, flow, metric)
+                ## backbone
+                if it == 0:
+                    feature_before = self.backbone(x)
+                else:
+                    feature_before = feature_after
+                #     feature_before = [self.fusion_attens[i](feature_before[i], feature_after[i]) for i in range(len(feature_before))]
+                    # feature_before = self.backbone(x, metric=feature_after)
+                # feature_next = self.backbone([rgb_next])
+                
+                feature_loss = 0
+                feature_after, feature_mid, interFlow = self.softsplat_net(feature_before, event_voxel, flow)
         elif len(x) == 1:
             feature_before = self.backbone(x)
             feature_loss = 0

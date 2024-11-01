@@ -42,13 +42,13 @@ def main(cfg, scene, classes, gpu, save_dir):
 
     traintransform = get_train_augmentation(train_cfg['IMAGE_SIZE'], seg_fill=dataset_cfg['IGNORE_LABEL'])
     valtransform = get_val_augmentation(eval_cfg['IMAGE_SIZE'])
-    trainset = eval(dataset_cfg['NAME'])(dataset_cfg['ROOT'], 'train', classes, traintransform, dataset_cfg['MODALS'], duration=dataset_cfg['DURATION'])
+    trainset = eval(dataset_cfg['NAME'])(dataset_cfg['ROOT'], 'train', classes, traintransform, dataset_cfg['MODALS'], duration=dataset_cfg['DURATION'], flow_net_flag=model_cfg['FLOW_NET_FLAG'])
     # 计算补齐后的目标长度
     if len(trainset) % train_cfg['BATCH_SIZE'] != 0:
         num_batches = math.ceil(len(trainset) / train_cfg['BATCH_SIZE'])
         target_length = num_batches * train_cfg['BATCH_SIZE']
         trainset = ExtendedDSEC(trainset, target_length)
-    valset = eval(dataset_cfg['NAME'])(dataset_cfg['ROOT'], 'val', classes, valtransform, dataset_cfg['MODALS'], duration=dataset_cfg['DURATION'])
+    valset = eval(dataset_cfg['NAME'])(dataset_cfg['ROOT'], 'val', classes, valtransform, dataset_cfg['MODALS'], duration=dataset_cfg['DURATION'], flow_net_flag=model_cfg['FLOW_NET_FLAG'])
     class_names = trainset.SEGMENTATION_CONFIGS[classes]["CLASSES"]
 
     model = eval(model_cfg['NAME'])(model_cfg['BACKBONE'], trainset.n_classes, dataset_cfg['MODALS'], model_cfg['FLOW_NET_FLAG'])
