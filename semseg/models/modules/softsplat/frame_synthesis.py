@@ -539,11 +539,15 @@ class Synthesis(torch.nn.Module):
         class Warp(torch.nn.Module):
             def __init__(self, embed_dim, activation_layer=None):
                 super().__init__()
+                # self.refine_type = ['conv-relu-conv' if embed_dim[i] == 3 else 'more-more-conv' for i in range(len(embed_dim))]
+                # self.refine_type = ['conv-relu-conv' if embed_dim[i] == 3 else 'more-more-conv' for i in range(len(embed_dim))]
                 self.nets = nn.ModuleList([
                     # nn.Sequential(
                     # Basic('conv-relu-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
                     # Basic('more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
+                    # Basic('more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True, activation_layer=activation_layer)
                     Basic('more-more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True, activation_layer=activation_layer)
+                    # Basic(self.refine_type[i], [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True, activation_layer=activation_layer)
                     # Basic('more-more-conv-k5', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True, activation_layer=activation_layer)
                     # Basic('dilation-more-more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True, activation_layer=activation_layer)
                     # Basic('multi-attention', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True, activation_layer=activation_layer)
@@ -553,7 +557,7 @@ class Synthesis(torch.nn.Module):
                 ])
             # end
 
-            def forward(self, tenEncone, tenMetricone, tenForward, event_voxel=None):
+            def forward(self, tenEncone, tenMetricone, tenForward):
                 tenOutput = []
                 tenMid = []
                 tenFlow = []
@@ -565,7 +569,7 @@ class Synthesis(torch.nn.Module):
                     # event_voxel = torch.nn.functional.interpolate(input=event_voxel, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
                     # rgb = torch.nn.functional.interpolate(input=rgb, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
                     # tenScale = torch.nn.functional.interpolate(input=tenScale, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
-                    tenFlow.append(tenForward)
+                    # tenFlow.append(tenForward)
                     tenIn=torch.cat([tenEncone[intLevel], tenMetricone], 1)
                     # tenMask = torch.ones_like(tenMetricone)
                     # tenIn = tenEncone[intLevel]
@@ -575,7 +579,7 @@ class Synthesis(torch.nn.Module):
                     # print(tenWarp.shape, tenMaskWarp.shape, tenIn.shape)
                     # print((tenMaskWarp > 0).shape)
                     # tenWarp = tenWarp[tenMaskWarp > 0] + tenIn[tenMaskWarp == 0]
-                    tenMid.append(tenWarp)
+                    # tenMid.append(tenWarp)
                     tenOutput.append(
                         self.nets[intLevel](
                             # torch.cat([tenEncone[intLevel], tenEncone_event[intLevel], tenWarp], 1)
@@ -591,7 +595,8 @@ class Synthesis(torch.nn.Module):
                     )
                 # end
 
-                return tenOutput, tenMid, tenFlow
+                return tenOutput
+                # return tenOutput, tenMid, tenFlow
             # end
         # end
         # skip_type = 'residual'
@@ -606,18 +611,16 @@ class Synthesis(torch.nn.Module):
         # self.netScale = Softmetric()
 
         self.netWarp = Warp(feature_dims, activation_layer=self.activation_layer)
+        # self.netWarp_img = Warp([3], activation_layer=self.activation_layer)
 
 
-    def forward(self, tenEncone, event_voxel, tenForward):
-    # def forward(self, tenEncone, tenForward, event_voxel, tenEncone_event=None, psi=None):
-        # tenMetricone = torch.sqrt(torch.square(tenForward[:, 0, :, :] + tenForward[:, 1, :, :])).unsqueeze(1)
-        # tenForward = self.netFlow(event_voxel, rgb) * 2.0
-        tenMetricone = self.netSoftmetric(event_voxel, tenForward) * 2.0
-        # tenMetricone = self.netSoftmetric(rgb, event_voxel, tenForward) * self.alpha_s
-        # tenMetricone, tenScale = torch.chunk(self.netSoftmetric(rgb, event_voxel, tenForward) * 2.0, chunks=2, dim=1)
-        tenWarp, tenMid, tenFlow = self.netWarp(tenEncone, tenMetricone, tenForward, event_voxel)
+    def forward(self, tenEncone, tenForward, tenMetricone=None):
+        # tenMetricone = self.netSoftmetric(event_voxel, tenForward) * 2.0
+        # tenWarp, tenMid, tenFlow = self.netWarp(tenEncone, tenMetricone, tenForward)
+        tenWarp = self.netWarp(tenEncone, tenMetricone, tenForward)
 
-        return tenWarp, tenMid, tenFlow
+        return tenWarp
+        # return tenWarp, tenMid, tenFlow
 
 @torch.no_grad()
 def predict_tensor(src_frame: torch.Tensor, flow: torch.Tensor, model: Synthesis, batch_size: int = 32):
