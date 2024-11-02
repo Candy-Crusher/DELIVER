@@ -29,7 +29,7 @@ DATASET:
   # MODALS        : ['img', 'lidar']
   # MODALS        : ['img', 'depth', 'event']
   # MODALS        : ['img', 'depth', 'lidar']
-  # MODALS        : ['img', 'depth', 'event', 'lidar']
+  # MODALS        : ['img', 'depthd', 'event', 'lidar']
 
 TRAIN:
   IMAGE_SIZE    : [440, 640]    # training image size in (h, w)

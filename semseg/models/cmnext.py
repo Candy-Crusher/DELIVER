@@ -31,15 +31,27 @@ class CMNeXt(BaseModel):
             #     flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=feature_dims[i])
             #     for i in range(len(feature_dims))
             # )
-            # self.flow_net = ERAFT(n_first_channels=2)
+            # self.n_first_channels = 2
+            # self.flow_net = ERAFT(n_first_channels=self.n_first_channels)
             self.flow_net = RAFTSpline()
 
         feature_dims = [64, 128, 320, 512]
         self.softsplat_net = Synthesis(feature_dims, activation='PReLU')
-        # self.fusion_attens = nn.ModuleList(
-        #     Attention(dim=feature_dims[i], num_heads=8, bias=False)
-        #     for i in range(len(feature_dims))
-        # )
+        
+        self.fusion_attens = nn.ModuleList(
+            # Attention(dim=feature_dims[i], num_heads=8, bias=False)
+            nn.ModuleList(
+                MultiAttentionBlock(
+                dim=feature_dims[i],
+                num_heads=8,
+                LayerNorm_type='WithBias',
+                ffn_expansion_factor=2.66,
+                bias=False,
+                is_DA=False)
+                for _ in range(2)
+            )
+            for i in range(len(feature_dims))
+        )
 
         self.apply(self._init_weights)
 
@@ -66,13 +78,16 @@ class CMNeXt(BaseModel):
 
             else:
                 ################ for eraft ################
-                # bin = 5
-                # event_voxel = torch.cat([event_voxel.mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-                # ev1, ev2 = torch.split(event_voxel, event_voxel.shape[1]//2, dim=1)
-                # # bin = 5
-                # # event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-                # flow = self.flow_net(ev1, ev2)[-1]
-                # tenMetricone = self.softsplat_net.netSoftmetric(event_voxel, flow) * 2.0
+                # flows_split = []
+                # tenMetricones = []
+                # evs = torch.cat([event_voxel.mean(1).unsqueeze(1) for i in range(self.n_first_channels*2*len(lookup_timestamps))], dim=1)
+                # evs = torch.split(event_voxel, self.n_first_channels*2, dim=1)
+                # for iter in range(len(lookup_timestamps)):
+                #     ev1, ev2 = torch.split(evs[iter], self.n_first_channels, dim=1)
+                #     # bin = 5
+                #     # event_voxel = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                #     flows_split.append(self.flow_net(ev1, ev2)[-1])
+                #     tenMetricones.append(self.softsplat_net.netSoftmetric(evs[iter], flows_split[iter]) * 2.0)
                 ##########################################
 
                 # ################# for bflow ################
@@ -93,18 +108,17 @@ class CMNeXt(BaseModel):
                 tenMetricones.append(self.softsplat_net.netSoftmetric(event_voxel, flows[0]) * 2.0)
                 flows_split = flows_split[::-1]
                 tenMetricones = tenMetricones[::-1]
-                # flow_t0_t1 = flows[0]
-                # flow_t0_t2 = flows[1]
-                # flow_t1_t2 = flow_t0_t2 - flow_t0_t1
-
-                # tenMetricone_t0_t1 = self.softsplat_net.netSoftmetric(event_voxel, flow_t0_t1) * 2.0
-                # tenMetricone_t1_t2 = self.softsplat_net.netSoftmetric(event_voxel, flow_t1_t2) * 2.0
                 # ##########################################
 
             ## backbone
-            feature_after = self.backbone(x)
+            feature_init = self.backbone(x)
+            feature_after = feature_init
             for iter in range(len(flows_split)):
                 feature_after = self.softsplat_net(feature_after, flows_split[iter], tenMetricones[iter])
+                # feature_after = [self.fusion_attens[i](feature_after[i], feature_warp[i]) for i in range(len(feature_warp))]
+                for i in range(4):
+                    for blk in self.fusion_attens[i]:
+                        feature_after[i] = blk(feature_after[i], feature_init[i])
             # feature_after= self.softsplat_net(feature_before, flow_t0_t1, tenMetricone_t0_t1)
             # feature_after= self.softsplat_net(feature_after, flow_t1_t2, tenMetricone_t1_t2)
             # img_inter = self.softsplat_net.netWarp_img([x[0]], flow_t0_t1, tenMetricone_t0_t1)

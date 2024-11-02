@@ -204,7 +204,7 @@ class MultiAttentionBlock(torch.nn.Module):
             self.norm4 = LayerNorm(dim, LayerNorm_type)
             self.ffn2 = FeedForward(dim, ffn_expansion_factor, bias)
 
-    def forward(self, Fw, F0_c, Kd):
+    def forward(self, Fw, F0_c, Kd=None):
         if F0_c is not None:
             Fw = Fw + self.co_attn(self.norm1(Fw), F0_c)
         else:
@@ -355,14 +355,16 @@ class Synthesis(torch.nn.Module):
             def forward(self, tenInput, in1=None, in2=None):
                 # Standard path through the main network
                 if self.strType == 'multi-attention':
-                    tenMain = tenInput[:, :-1]
-                    if in1 is not None:
-                        tenMetric = in1.repeat(1, tenMain.shape[1], 1, 1)
-                    else:
-                        tenMetric = tenInput[:, -1:].repeat(1, tenMain.shape[1], 1, 1)
+                    # tenMain = tenInput[:, :-1]
+                    # if in1 is not None:
+                    #     tenMetric = in1.repeat(1, tenMain.shape[1], 1, 1)
+                    # else:
+                    #     tenMetric = tenInput[:, -1:].repeat(1, tenMain.shape[1], 1, 1)
+                    if in1 is None:
+                        in1 = tenInput
                     for layer in self.netMain:
                         # tenMain = layer(tenMain, in1, in2)
-                        tenMain = layer(tenMain, tenMetric, None)
+                        tenMain = layer(tenMain, in1, None)
                     return tenMain
                 tenMain = self.netMain(tenInput)
 
@@ -559,8 +561,8 @@ class Synthesis(torch.nn.Module):
 
             def forward(self, tenEncone, tenMetricone, tenForward):
                 tenOutput = []
-                tenMid = []
-                tenFlow = []
+                # tenMid = []
+                # tenFlow = []
 
                 for intLevel in range(len(tenEncone)):
                     tenMetricone = torch.nn.functional.interpolate(input=tenMetricone, size=(tenEncone[intLevel].shape[2], tenEncone[intLevel].shape[3]), mode='bilinear', align_corners=False)
