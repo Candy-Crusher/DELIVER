@@ -26,6 +26,7 @@ import numpy as np
 import math
 # import Image
 from PIL import Image
+from torchviz import make_dot
 
 def main(cfg, scene, classes, gpu, save_dir):
     start = time.time()
@@ -49,9 +50,10 @@ def main(cfg, scene, classes, gpu, save_dir):
         target_length = num_batches * train_cfg['BATCH_SIZE']
         trainset = ExtendedDSEC(trainset, target_length)
     valset = eval(dataset_cfg['NAME'])(dataset_cfg['ROOT'], 'val', classes, valtransform, dataset_cfg['MODALS'], duration=dataset_cfg['DURATION'], flow_net_flag=model_cfg['FLOW_NET_FLAG'])
+    # valset = eval(dataset_cfg['NAME'])(dataset_cfg['ROOT'], 'train', classes, valtransform, dataset_cfg['MODALS'], duration=dataset_cfg['DURATION'], flow_net_flag=model_cfg['FLOW_NET_FLAG'])
     class_names = trainset.SEGMENTATION_CONFIGS[classes]["CLASSES"]
 
-    model = eval(model_cfg['NAME'])(model_cfg['BACKBONE'], trainset.n_classes, dataset_cfg['MODALS'], model_cfg['FLOW_NET_FLAG'])
+    model = eval(model_cfg['NAME'])(model_cfg['BACKBONE'], trainset.n_classes, dataset_cfg['MODALS'], model_cfg['BACKBONE_FLAG'], model_cfg['FLOW_NET_FLAG'])
     resume_checkpoint = None
     if os.path.isfile(resume_path):
         resume_checkpoint = torch.load(resume_path, map_location=torch.device('cpu'))
@@ -60,9 +62,9 @@ def main(cfg, scene, classes, gpu, save_dir):
         logger.info(msg)
     else:
         if model_cfg['BACKBONE_FLAG']:
-            model.init_pretrained(model_cfg['PRETRAINED_BACKBONE'], model_cfg['BACKBONE_FLAG'])
+            model.init_pretrained(model_cfg['PRETRAINED_BACKBONE'])
         else:
-            model.init_pretrained(model_cfg['PRETRAINED'], model_cfg['BACKBONE_FLAG'])
+            model.init_pretrained(model_cfg['PRETRAINED'])
     
     if model_cfg['FLOW_NET_FLAG']:
     # if os.path.isfile(resume_flownet_path):
@@ -174,12 +176,22 @@ def main(cfg, scene, classes, gpu, save_dir):
             with autocast(enabled=train_cfg['AMP']):
                 # logits = model(sample, event_voxel, rgb_next, flow)
                 # logits, feature_loss = model(sample, event_voxel)
-                logits, feature_loss = model(sample)
+                logits = model(sample)
                 # logits, feature_loss = model(sample, event_voxel, rgb_next, flow)
-                loss = loss_fn(logits, lbl) + 100*feature_loss
+                loss = loss_fn(logits, lbl)
                 # loss = loss_fn(logits, lbl) + 0.5*feature_loss + 0.5*consistent_loss
 
             scaler.scale(loss).backward()
+            # scaler.scale(loss).backward(retain_graph=True)
+            # # 可视化计算图
+            # dot = make_dot(loss, params=dict(model.named_parameters()))
+            # dot.format = 'png'
+            # dot.render('cmnext_computation_graph')
+
+            # # 检查 netSoftmetric 和 netWarp 的梯度
+            # print(model.module.softsplat_net.netSoftmetric.netEventInput.weight.grad)
+            # print(model.module.softsplat_net.netWarp.nets[0].netMain[1].weight.grad)
+            # exit(0)
             # torch.nn.utils.clip_grad_value_(model.parameters(), clip_value=0.5)
             # 在优化器步骤之前，我们使用梯度裁剪
             # # 对于模型的每个参数，计算其梯度的L2范数

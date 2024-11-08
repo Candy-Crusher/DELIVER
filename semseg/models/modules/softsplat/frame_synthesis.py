@@ -616,13 +616,17 @@ class Synthesis(torch.nn.Module):
         # self.netWarp_img = Warp([3], activation_layer=self.activation_layer)
 
 
-    def forward(self, tenEncone, tenForward, tenMetricone=None):
-        # tenMetricone = self.netSoftmetric(event_voxel, tenForward) * 2.0
-        # tenWarp, tenMid, tenFlow = self.netWarp(tenEncone, tenMetricone, tenForward)
+    # def forward(self, tenEncone, tenForward, tenMetricone=None, event_voxel=None):
+    #     if tenMetricone is None:
+    #         tenMetricone = self.netSoftmetric(event_voxel, tenForward) * 2.0
+    #         return tenMetricone
+    #     else:
+    #         tenWarp = self.netWarp(tenEncone, tenMetricone, tenForward)
+    #         return tenWarp
+    def forward(self, tenEncone, tenForward, event_voxel):
+        tenMetricone = self.netSoftmetric(event_voxel, tenForward) * 2.0
         tenWarp = self.netWarp(tenEncone, tenMetricone, tenForward)
-
         return tenWarp
-        # return tenWarp, tenMid, tenFlow
 
 @torch.no_grad()
 def predict_tensor(src_frame: torch.Tensor, flow: torch.Tensor, model: Synthesis, batch_size: int = 32):

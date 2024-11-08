@@ -94,9 +94,21 @@ def sliding_predict(model, image, num_classes, flip=True):
 
     return total_predictions.unsqueeze(0)
 
+def denormalize(image, mean: list = (0.485, 0.456, 0.406), std: list = (0.229, 0.224, 0.225)):
+    mean = torch.tensor(mean).view(1, 3, 1, 1)
+    std = torch.tensor(std).view(1, 3, 1, 1)
+    return image * std + mean
+
 @torch.no_grad()
 def evaluate(model, dataloader, device, save_dir=None, palette=None):
     print('Evaluating...')
+    # 保存图像
+    if save_dir is not None:
+        # 将调色板字典转换为 NumPy 数组
+        palette_array = np.zeros((256, 3), dtype=np.uint8)
+        for key, value in palette.items():
+            palette_array[int(key)] = value
+        iou_dict = {}
     model.eval()
     n_classes = dataloader.dataset.n_classes
     metrics = Metrics(n_classes, dataloader.dataset.ignore_label, device)
@@ -114,7 +126,7 @@ def evaluate(model, dataloader, device, save_dir=None, palette=None):
         else:
             # preds, _ , _ = model(images, event_voxel, rgb_next, flow, psi)
             # preds, _ = model(images, event_voxel, rgb_next, flow)
-            preds, _ = model(images)
+            preds = model(images)
             # preds, _ = model(images, event_voxel)
             # preds = preds.softmax(dim=1)
             # preds = label_ref
@@ -128,27 +140,43 @@ def evaluate(model, dataloader, device, save_dir=None, palette=None):
         # 保存图像
         if save_dir is not None:
             for i, idx in enumerate(seq_index):
+                metrics_single = Metrics(n_classes, dataloader.dataset.ignore_label, device)
                 # 把shape为(19, H, W)的预测结果转换为(H, W)的numpy数组
                 save_path = Path(save_dir) / seq_names[i]
                 if not os.path.exists(save_path):
                     os.makedirs(save_path)
                 pred_argmax = preds[i].argmax(dim=0).cpu().numpy().astype(np.uint8)
-                rgb_pred = palette[pred_argmax]
-                rgb_lbl = palette[labels[i].cpu().numpy().astype(np.uint8)]
+                rgb_pred = palette_array[pred_argmax]
+                rgb_lbl = palette_array[labels[i].cpu().numpy().astype(np.uint8)]
                 # 将numpy数组转换为PIL图像
                 pred_argmax = Image.fromarray(pred_argmax)
                 rgb_pred = Image.fromarray(rgb_pred.astype(np.uint8))
                 rgb_lbl = Image.fromarray(rgb_lbl.astype(np.uint8))
-                img = Image.fromarray((images[0][i].cpu().numpy().transpose(1, 2, 0) * 255).astype(np.uint8))
+                # image 需要反normalize Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
+                denorm_img = denormalize(images[0][i].cpu()).squeeze()
+                img = Image.fromarray((denorm_img.numpy().transpose(1, 2, 0) * 255).astype(np.uint8))
                 pred_argmax.save(save_path / idx.replace('.npy', '_labelTrainIds11.png'))
                 concatenated_image = concatenate_images([img,rgb_lbl,rgb_pred], direction='horizontal')
                 concatenated_image.save(save_path / idx.replace('.npy', '_color.png'))
                 # rgb_image.save(save_path / idx.replace('.npy', '_color.png'))
                 # rgb_lbl.save(save_path / idx.replace('.npy', '_color_gt.png'))
+
+                # 计算这张图片的iou
+                metrics_single.update(preds[i].unsqueeze(0), labels[i].unsqueeze(0))
+                ious, miou = metrics_single.compute_iou()
+                iou_dict[seq_names[i]+'_'+idx] = ious
+
         metrics.update(preds, labels)
     ious, miou = metrics.compute_iou()
     acc, macc = metrics.compute_pixel_acc()
     f1, mf1 = metrics.compute_f1()
+
+    if save_dir is not None:
+        with open(Path(save_dir) / 'iou.txt', 'w') as f:
+            for key, value in iou_dict.items():
+                f.write(key + ': ' + str(value) + '\n')
+        # save iou as npy
+        np.save(Path(save_dir) / 'iou.npy', iou_dict)
     
     return acc, macc, f1, mf1, ious, miou
 
@@ -210,10 +238,12 @@ def main(cfg, scene, classes, model_path):
 
     for case in cases:
         dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'], 'val', classes, transform, cfg['DATASET']['MODALS'], case, duration=cfg['DATASET']['DURATION'], flow_net_flag=cfg['MODEL']['FLOW_NET_FLAG'])
+        # dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'], 'train', classes, transform, cfg['DATASET']['MODALS'], case, duration=cfg['DATASET']['DURATION'], flow_net_flag=cfg['MODEL']['FLOW_NET_FLAG'])
         # --- test set
         # dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'], 'test', transform, cfg['DATASET']['MODALS'], case)
 
-        model = eval(cfg['MODEL']['NAME'])(cfg['MODEL']['BACKBONE'], dataset.n_classes, cfg['DATASET']['MODALS'], cfg['MODEL']['FLOW_NET_FLAG'])
+        model = eval(cfg['MODEL']['NAME'])(cfg['MODEL']['BACKBONE'], dataset.n_classes, cfg['DATASET']['MODALS'], cfg['MODEL']['BACKBONE_FLAG'], cfg['MODEL']['FLOW_NET_FLAG'])
+        # model = eval(cfg['MODEL']['NAME'])(cfg['MODEL']['BACKBONE'], 11, cfg['DATASET']['MODALS'], cfg['MODEL']['BACKBONE_FLAG'], cfg['MODEL']['FLOW_NET_FLAG'])
         msg = model.load_state_dict(torch.load(str(model_path), map_location='cuda'))
         print(msg)
         model = model.to(device)
@@ -223,7 +253,7 @@ def main(cfg, scene, classes, model_path):
             if eval_cfg['MSF']['ENABLE']:
                 acc, macc, f1, mf1, ious, miou = evaluate_msf(model, dataloader, device, eval_cfg['MSF']['SCALES'], eval_cfg['MSF']['FLIP'])
             else:
-                acc, macc, f1, mf1, ious, miou = evaluate(model, dataloader, device, save_dir, palette=np.array(dataset.SEGMENTATION_CONFIGS[classes]["PALETTE"]))
+                acc, macc, f1, mf1, ious, miou = evaluate(model, dataloader, device, save_dir, palette=dataset.SEGMENTATION_CONFIGS[classes]["PALETTE"])
 
             table = {
                 'Class': list(dataset.SEGMENTATION_CONFIGS[classes]["CLASSES"]) + ['Mean'],

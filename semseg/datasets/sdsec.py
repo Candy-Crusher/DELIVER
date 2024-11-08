@@ -58,75 +58,33 @@ def compute_flow_variance(F0to1):
 def get_new_name(filepath, idx_diff):
     # 正则表达式匹配文件名中的编号部分
     filename = os.path.basename(filepath)
-    pattern = re.compile(r'(\d+)_gtFine_labelTrainIds')
+    pattern = re.compile(r'(\d+)_gtFine_labelTrainIds11\.png')
 
     match = pattern.match(filename)
     if match:
         # 提取编号部分
         number = match.group(1)
         # 构建新的文件名
-        new_filename = f'{int(number)+idx_diff:06d}_gtFine_labelTrainIds'
+        new_filename = f'{int(number)+idx_diff:06d}_gtFine_labelTrainIds11.png'
         # 构建完整的路径名
-        new_filepath = filepath.replace(f'{number}_gtFine_labelTrainIds', new_filename)
+        new_filepath = filepath.replace(f'{number}_gtFine_labelTrainIds11.png', new_filename)
         return new_filepath
     return None
 
 class DSEC(Dataset):
     # 定义类别和调色板的字典
     SEGMENTATION_CONFIGS = {
-        9: {
-            "CLASSES": [
-                "background", "building", "person", "pole",
-                "road", "sidewalk", "vegetation", "car",
-                "traffic sign",
-            ],
-            # "PALETTE": torch.tensor([
-            #     [0, 0, 0], [70, 70, 70], [220, 20, 60], [153, 153, 153], 
-            #     [128, 64, 128], [244, 35, 232], [107, 142, 35], [0, 0, 142]
-            #     [220, 220, 0],
-            # ])
-            # dict palette
-            "PALETTE": dict(
-                {0: [0, 0, 0], 1: [70, 70, 70], 2: [220, 20, 60], 3: [153, 153, 153],
-                4: [128, 64, 128], 5: [244, 35, 232], 6: [107, 142, 35], 7: [0, 0, 142],
-                8: [220, 220, 0]}
-            )
-        },
-        10: {
-            "CLASSES": [
-                "background", "building", "fence", "person", "pole",
-                "road", "sidewalk", "vegetation", "car", 
-                "traffic sign",
-            ],
-            # "PALETTE": torch.tensor([
-            #     [0, 0, 0], [70, 70, 70], [190, 153, 153], [220, 20, 60], [153, 153, 153], 
-            #     [128, 64, 128], [244, 35, 232], [107, 142, 35], [0, 0, 142], [102, 102, 156], 
-            #     [220, 220, 0],
-            # ])
-            # dict palette
-            "PALETTE": dict(
-                {0: [0, 0, 0], 1: [70, 70, 70], 2: [190, 153, 153], 3: [220, 20, 60], 4: [153, 153, 153],
-                5: [128, 64, 128], 6: [244, 35, 232], 7: [107, 142, 35], 8: [0, 0, 142],
-                9: [220, 220, 0]}
-            )
-        },
         11: {
             "CLASSES": [
                 "background", "building", "fence", "person", "pole",
                 "road", "sidewalk", "vegetation", "car", "wall",
                 "traffic sign",
             ],
-            # "PALETTE": torch.tensor([
-            #     [0, 0, 0], [70, 70, 70], [190, 153, 153], [220, 20, 60], [153, 153, 153], 
-            #     [128, 64, 128], [244, 35, 232], [107, 142, 35], [0, 0, 142], [102, 102, 156], 
-            #     [220, 220, 0],
-            # ])
-            # dict palette
-            "PALETTE": dict(
-                {0: [0, 0, 0], 1: [70, 70, 70], 2: [190, 153, 153], 3: [220, 20, 60], 4: [153, 153, 153],
-                5: [128, 64, 128], 6: [244, 35, 232], 7: [107, 142, 35], 8: [0, 0, 142], 9: [102, 102, 156],
-                10: [220, 220, 0], 11: [55, 90, 80], 12: [157, 234, 50]}
-            )
+            "PALETTE": torch.tensor([
+                [0, 0, 0], [70, 70, 70], [190, 153, 153], [220, 20, 60], [153, 153, 153], 
+                [128, 64, 128], [244, 35, 232], [107, 142, 35], [0, 0, 142], [102, 102, 156], 
+                [220, 220, 0],
+            ])
         },
         12: {
             "CLASSES": [
@@ -140,24 +98,6 @@ class DSEC(Dataset):
                 [220, 220, 0], [255, 170, 255],
             ])
         },
-       13: {
-            "CLASSES": [
-                "background", "building", "fence", "person", "pole",
-                "road", "sidewalk", "vegetation", "car", "wall",
-                "traffic sign", "other", "roadline"
-            ],
-            # "PALETTE": torch.tensor([
-            #     [0, 0, 0], [70, 70, 70], [190, 153, 153], [220, 20, 60], [153, 153, 153], 
-            #     [128, 64, 128], [244, 35, 232], [107, 142, 35], [0, 0, 142], [102, 102, 156], 
-            #     [220, 220, 0], [55, 90, 80], [157, 234, 50]
-            # ])
-            # dict palette
-            "PALETTE": dict(
-                {0: [0, 0, 0], 1: [70, 70, 70], 2: [190, 153, 153], 3: [220, 20, 60], 4: [153, 153, 153],
-                5: [128, 64, 128], 6: [244, 35, 232], 7: [107, 142, 35], 8: [0, 0, 142], 9: [102, 102, 156],
-                10: [220, 220, 0], 11: [55, 90, 80], 12: [157, 234, 50], 255: [255, 255, 255]}
-            )
-        },
         19: {
             "CLASSES": [
                 'road', 'sidewalk', 'building', 'wall', 'fence', 'pole', 'traffic light', 'traffic sign', 'vegetation', 
@@ -166,10 +106,34 @@ class DSEC(Dataset):
             "PALETTE": torch.tensor([
                 [128, 64, 128], [244, 35, 232], [70, 70, 70], [102, 102, 156], [190, 153, 153], [153, 153, 153], [250, 170, 30], [220, 220, 0], [107, 142, 35], 
                 [152, 251, 152], [70, 130, 180], [220, 20, 60], [255, 0, 0], [0, 0, 142], [0, 0, 70], [0, 60, 100], [0, 80, 100], [0, 0, 230], [119, 11, 32]
-            ])
+            ]),
+            "ID2TRAINID": {
+                0: 255, 1: 255, 2: 255, 3: 255, 4: 255, 5: 255, 6: 255, 7: 0, 8: 1, 9: 255, 10: 255, 11: 2, 12: 3, 13: 4, 14: 255, 15: 255, 16: 255, 17: 5, 18: 255, 19: 6, 
+                20: 7, 21: 8, 22: 9, 23: 10, 24: 11, 25: 12, 26: 13, 27: 14, 28: 15, 29: 255, 30: 255, 31: 16, 32: 17, 33: 18, 34: 2, 35: 4, 36: 255, 37: 5, 38: 255, 39: 255, 
+                40: 255, 41: 255, 42: 255, 43: 255, 44: 255, -1: 255
+            }
         },
-
-
+        23: {
+            "CLASSES": [
+                "None", "Building", "Fences", "Other", "Pedestrian",
+                "Pole", "RoadLines", "Road", "Sidewalk", "Vegetation",
+                "Vehicle", "Wall", "TrafficSign", "Sky", "Ground",
+                "Bridge", "RailTrack", "GuardRail", "TrafficLight", "Static",
+                "Dynamic", "Water", "Terrain"
+            ],
+            "PALETTE": torch.tensor([
+                [255, 255, 255], [70, 70, 70], [100, 40, 40], [55, 90, 80], [220, 20, 60],
+                [153, 153, 153], [157, 234, 50], [128, 64, 128], [244, 35, 232], [107, 142, 35],
+                [0, 0, 142], [102, 102, 156], [220, 220, 0], [70, 130, 180], [81, 0, 81],
+                [150, 100, 100], [230, 150, 140], [180, 165, 180], [250, 170, 30], [110, 190, 160],
+                [170, 120, 50], [45, 60, 150], [145, 170, 100]
+            ]),
+            "ID2TRAINID": {
+                0: 255, 1: 255, 2: 255, 3: 255, 4: 255, 5: 255, 6: 255, 7: 0, 8: 1, 9: 255, 10: 255, 11: 2, 12: 3, 13: 4, 14: 255, 15: 255, 16: 255, 17: 5, 18: 255, 19: 6, 
+                20: 7, 21: 8, 22: 9, 23: 10, 24: 11, 25: 12, 26: 13, 27: 14, 28: 15, 29: 255, 30: 255, 31: 16, 32: 17, 33: 18, 34: 2, 35: 4, 36: 255, 37: 5, 38: 255, 39: 255, 
+                40: 255, 41: 255, 42: 255, 43: 255, 44: 255, -1: 255
+            }
+        }
     }
 
     def __init__(self, root: str = 'data/DSEC', split: str = 'train', n_classes: int = 11, transform = None, modals = ['img', 'event'], case = None, duration: int=0, flow_net_flag: bool=False) -> None:
@@ -185,23 +149,16 @@ class DSEC(Dataset):
 
         self.duration = duration
         self.time_window = duration//50
-        if self.n_classes == 34:
-            self.index_window = self.time_window*(50//10)
-        elif self.n_classes == 11:
-            self.index_window = self.time_window*(50//50)
-    
         self.flow_net_flag = flow_net_flag
         self.iterframe_test = False
         print(f"Loading DSEC dataset with {duration}ms duration.")
         self.seg_gt_dirname = f'/gtFine_t{self.time_window}'
         # self.files = sorted(glob.glob(os.path.join(*[root, 'leftImg8bit', split, '*', '*.png'])))
-        # self.n_classes = 13
-        self.files = sorted(glob.glob(os.path.join(*[root, self.seg_gt_dirname[1:], split, '*', f'*_gtFine_labelTrainIds{self.n_classes}.png'])))
+        self.files = sorted(glob.glob(os.path.join(*[root, self.seg_gt_dirname[1:], split, '*', '*_gtFine_labelTrainIds11.png'])))
         # self.files = sorted(glob.glob(os.path.join(*[root, 'sample', split, '*', '*.npy'])))
         # --- debug
         # self.files = sorted(glob.glob(os.path.join(*[root, 'img', '*', split, '*', '*.png'])))[:100]
         print(f"Found {len(self.files)} {split} {case} images.")
-
 
     def __len__(self) -> int:
         return len(self.files)
@@ -210,21 +167,21 @@ class DSEC(Dataset):
         sample = {}
         lbl_path = str(self.files[index])
         if self.time_window != 0:
-            bin = 20
+            bin = 40
             if self.iterframe_test:
                 if bin==20:
                     start_t = 1
-                    rgb_path = get_new_name(lbl_path, idx_diff=start_t-self.index_window).replace(self.seg_gt_dirname, f'/leftImg8bit_t{start_t}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
+                    rgb_path = get_new_name(lbl_path, idx_diff=start_t-self.time_window).replace(self.seg_gt_dirname, f'/leftImg8bit_t{start_t}').replace('_gtFine_labelTrainIds11.png', '.png')
                     ### event ###
-                    event_path = get_new_name(lbl_path, idx_diff=0-self.index_window).replace(self.seg_gt_dirname, f'/event_t0_t{self.time_window}/event_40').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
+                    event_path = get_new_name(lbl_path, idx_diff=0-self.time_window).replace(self.seg_gt_dirname, f'/event_t0_t{self.time_window}/event_40').replace('_gtFine_labelTrainIds11.png', '.npy')
                     event_voxel = np.load(event_path, allow_pickle=True)
                     if start_t == 1:
                         event_voxel = event_voxel[20:]
                     sample['event'] = torch.from_numpy(event_voxel[:, :440])
                     ### flow ###
                     if not self.flow_net_flag:
-                        flow_path_t0_t1 = get_new_name(lbl_path, idx_diff=0-self.index_window).replace(self.seg_gt_dirname, f'/flow_t0_t1').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
-                        flow_path_t1_t2 = get_new_name(lbl_path, idx_diff=1-self.index_window).replace(self.seg_gt_dirname, f'/flow_t1_t2').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
+                        flow_path_t0_t1 = get_new_name(lbl_path, idx_diff=0-self.time_window).replace(self.seg_gt_dirname, f'/flow_t0_t1').replace('_gtFine_labelTrainIds11.png', '.npy')
+                        flow_path_t1_t2 = get_new_name(lbl_path, idx_diff=1-self.time_window).replace(self.seg_gt_dirname, f'/flow_t1_t2').replace('_gtFine_labelTrainIds11.png', '.npy')
                         flow_t0_t1 = np.load(flow_path_t0_t1, allow_pickle=True)
                         flow_t1_t2 = np.load(flow_path_t1_t2, allow_pickle=True)
                         if start_t == 1:
@@ -233,9 +190,9 @@ class DSEC(Dataset):
                             flow = np.concatenate([flow_t0_t1, flow_t1_t2], axis=0)
                         sample['flow'] = torch.from_numpy(flow[:, :440])
             else:
-                rgb_path = get_new_name(lbl_path, idx_diff=0-self.index_window).replace(self.seg_gt_dirname, f'/leftImg8bit_t0').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
+                rgb_path = get_new_name(lbl_path, idx_diff=0-self.time_window).replace(self.seg_gt_dirname, f'/leftImg8bit_t0').replace('_gtFine_labelTrainIds11.png', '.png')
                 ### event ###
-                event_path = get_new_name(lbl_path, idx_diff=-0-self.index_window).replace(self.seg_gt_dirname, f'/event_t0_t{self.time_window}/event_{bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
+                event_path = get_new_name(lbl_path, idx_diff=-0-self.time_window).replace(self.seg_gt_dirname, f'/event_t0_t{self.time_window}/event_{bin}').replace('_gtFine_labelTrainIds11.png', '.npy')
                 event_voxel = np.load(event_path, allow_pickle=True)
                 sample['event'] = torch.from_numpy(event_voxel[:, :440])
                 ### flow ###
@@ -244,14 +201,18 @@ class DSEC(Dataset):
                     flow = np.load(flow_path, allow_pickle=True)
                     sample['flow'] = torch.from_numpy(flow[:, :440])
         else:
-            rgb_path = lbl_path.replace(self.seg_gt_dirname, '/leftImg8bit_t0').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
+            rgb_path = lbl_path.replace(self.seg_gt_dirname, '/leftImg8bit_t0').replace('_gtFine_labelTrainIds11.png', '.png')
 
-        # lbl_path_t0 = get_new_name(lbl_path, idx_diff=-self.index_window).replace(self.seg_gt_dirname, '/gtFine_t0')
-        # rgb_ref = lbl_path.replace(self.seg_gt_dirname, '/leftImg8bit_next').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
+        # lbl_path_t0 = get_new_name(lbl_path, idx_diff=-self.time_window).replace(self.seg_gt_dirname, '/gtFine_t0')
+        # rgb_ref = lbl_path.replace(self.seg_gt_dirname, '/leftImg8bit_next').replace('_gtFine_labelTrainIds11.png', '.png')
         # flow_inverse = rgb_ref.replace('/leftImg8bit_next', '/flow_reverse').replace('.png', '.npy')
 
+        if self.n_classes == 12:
+            lbl_path = lbl_path.replace('_gtFine_labelTrainIds11.png', '_gtFine_labelTrainIds12.png')
+        elif self.n_classes == 19:
+            lbl_path = lbl_path.replace('_gtFine_labelTrainIds11.png', '_gtFine_labelTrainIds.png')
         # lbl_path = lbl_path.split('.')[0]  # 获取文件名的基础部分（去掉扩展名）
-        # lbl_path = f"{lbl_path}_gtFine_labelTrainIds{self.n_classes}.png"  # 添加后缀并重新组合
+        # lbl_path = f"{lbl_path}_gtFine_labelTrainIds11.png"  # 添加后缀并重新组合
         seq_name = Path(rgb_path).parts[-2]
         seq_idx = Path(rgb_path).parts[-1].split('_')[0]
 
