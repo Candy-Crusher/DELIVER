@@ -164,10 +164,10 @@ def main(cfg, scene, classes, gpu, save_dir):
         lr = scheduler.get_lr()
         lr = sum(lr) / len(lr)
         pbar = tqdm(enumerate(trainloader), total=iters_per_epoch, desc=f"Epoch: [{epoch+1}/{epochs}] Iter: [{0}/{iters_per_epoch}] LR: {lr:.8f} Loss: {train_loss:.8f}")
-        for iter, (seq_names, seq_index, sample, lbl) in pbar:
+        for iter, (seq_names, seq_index, sample, lbls) in pbar:
             optimizer.zero_grad(set_to_none=True)
             sample = [x.to(device) for x in sample]
-            lbl = lbl.to(device)
+            lbls = [lbl.to(device) for lbl in lbls]
             # event_voxel = sample[1].to(device)
             # rgb_next = sample[2].to(device)
             # flow = sample[3].to(device)
@@ -176,9 +176,12 @@ def main(cfg, scene, classes, gpu, save_dir):
             with autocast(enabled=train_cfg['AMP']):
                 # logits = model(sample, event_voxel, rgb_next, flow)
                 # logits, feature_loss = model(sample, event_voxel)
-                logits = model(sample)
+                logits, logits_mid = model(sample)
                 # logits, feature_loss = model(sample, event_voxel, rgb_next, flow)
-                loss = loss_fn(logits, lbl)
+                loss = loss_fn(logits, lbls[0])
+                if logits_mid is not None:
+                    loss_mid = loss_fn(logits_mid, lbls[1])
+                    loss += loss_mid
                 # loss = loss_fn(logits, lbl) + 0.5*feature_loss + 0.5*consistent_loss
 
             scaler.scale(loss).backward()

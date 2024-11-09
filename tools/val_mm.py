@@ -115,7 +115,7 @@ def evaluate(model, dataloader, device, save_dir=None, palette=None):
     sliding = False
     for seq_names, seq_index, images, labels in tqdm(dataloader):
         images = [x.to(device) for x in images]
-        labels = labels.to(device)
+        labels = labels[0].to(device)
         # event_voxel = images[1]
         # rgb_next = images[2]
         # flow = images[3]
@@ -126,7 +126,7 @@ def evaluate(model, dataloader, device, save_dir=None, palette=None):
         else:
             # preds, _ , _ = model(images, event_voxel, rgb_next, flow, psi)
             # preds, _ = model(images, event_voxel, rgb_next, flow)
-            preds = model(images)
+            preds, preds_mid = model(images)
             # preds, _ = model(images, event_voxel)
             # preds = preds.softmax(dim=1)
             # preds = label_ref

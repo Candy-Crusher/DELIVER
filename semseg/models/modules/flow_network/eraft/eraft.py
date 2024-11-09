@@ -82,21 +82,21 @@ class ERAFT(nn.Module):
         return up_flow.reshape(N, 2, 8*H, 8*W)
 
 
-    def forward(self, image1, image2, iters=12, flow_init=None, upsample=True):
+    def forward(self, event1, event2, iters=12, flow_init=None, upsample=True):
         """ Estimate optical flow between pair of frames """
         # Pad Image (for flawless up&downsampling)
-        # image1 = self.image_padder.pad(image1)
-        # image2 = self.image_padder.pad(image2)
+        # event1 = self.image_padder.pad(event1)
+        # event2 = self.image_padder.pad(event2)
 
-        # image1 = image1.contiguous()
-        # image2 = image2.contiguous()
+        # event1 = event1.contiguous()
+        # event2 = event2.contiguous()
 
         hdim = self.hidden_dim
         cdim = self.context_dim
 
         # run the feature network
         with autocast(enabled=self.args.mixed_precision):
-            fmap1, fmap2 = self.fnet([image1, image2])
+            fmap1, fmap2 = self.fnet([event1, event2])
         
         fmap1 = fmap1.float()
         fmap2 = fmap2.float()
@@ -105,13 +105,13 @@ class ERAFT(nn.Module):
 
         # run the context network
         with autocast(enabled=self.args.mixed_precision):
-            cnet = self.cnet(image2)
+            cnet = self.cnet(event2)
             net, inp = torch.split(cnet, [hdim, cdim], dim=1)
             net = torch.tanh(net)
             inp = torch.relu(inp)
 
         # Initialize Grids. First channel: x, 2nd channel: y. Image is just used to get the shape
-        coords0, coords1 = self.initialize_flow(image1)
+        coords0, coords1 = self.initialize_flow(event1)
 
         if flow_init is not None:
             coords1 = coords1 + flow_init

@@ -1,12 +1,16 @@
 export PYTHONPATH="~/work/adap_v/DELIVER:$(pwd)"
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+# export CUDA_VISIBLE_DEVICES=4,5,6,7
 eval_dataset='day'
 input_type='rgb'
 python tools/val_mm.py \
     --cfg configs/dsec_${input_type}_${eval_dataset}.yaml \
     --scene dsec_${input_type}_${eval_dataset} \
     --classes 11 \
-    --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch243_71.3.pth  # raft 100ms
+    --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch200_72.01.pth
+    # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch295_73.3.pth
+    # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch217_71.95.pth  # N eraft 100ms
+    # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch243_71.3.pth  # raft 100ms
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch288_71.66.pth  # eraft 100 ms
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch205_73.12.pth  # eraft 50 ms
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch246_72.87.pth  # raft 50ms

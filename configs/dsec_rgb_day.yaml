@@ -21,8 +21,10 @@ DATASET:
   NAME          : DSEC                                          # dataset name to be trained with (camvid, cityscapes, ade20k)
   # ROOT          : '/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime/day'                                   # dataset root path
   # ROOT          : '/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_100/day'                                   # dataset root path
-  ROOT          : '/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_100_N/day'                                   # dataset root path
-  DURATION      : 100
+  # ROOT          : '/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_100_N/day'                                   # dataset root path
+  ROOT          : '/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_50_N/day'                                   # dataset root path
+  # DURATION      : 100
+  DURATION      : 50
   IGNORE_LABEL  : 255
   MODALS        : ['img']
   # MODALS        : ['img', 'depth']
