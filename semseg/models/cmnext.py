@@ -31,9 +31,9 @@ class CMNeXt(BaseModel):
             #     flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=feature_dims[i])
             #     for i in range(len(feature_dims))
             # )
-            # self.n_first_channels = 2
-            # self.flow_net = ERAFT(n_first_channels=self.n_first_channels)
-            self.flow_net = RAFTSpline()
+            self.n_first_channels = 4
+            self.flow_net = ERAFT(n_first_channels=self.n_first_channels)
+            # self.flow_net = RAFTSpline()
 
         if not self.backbone_flag:
             feature_dims = [64, 128, 320, 512]
@@ -62,6 +62,7 @@ class CMNeXt(BaseModel):
             flows_split = []
             tenMetricones = []
             event_voxel = x[1]
+            event_voxel_before = x[2]
             # event_voxel_total = x[1]
             # B, C, H, W = event_voxel_total.shape
             # n_it = event_voxel_total.shape[1]//20
@@ -70,7 +71,7 @@ class CMNeXt(BaseModel):
                 bin = 5
                 event_voxel = torch.cat([event_voxel.mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
                 ################ raft flow ################
-                flow = x[2]
+                flow = x[3]
                 # flow = x[2].view(-1, 2, H, W)
                 ##########################################
 
@@ -98,36 +99,41 @@ class CMNeXt(BaseModel):
                 #     # tenMetricone = self.softsplat_net(tenEncone=None, tenForward=flow, tenMetricone=None, event_voxel=ev) * 2.0
                 #     # feature_after = self.softsplat_net(tenEncone=feature_init, tenForward=flow, tenMetricone=tenMetricone)
                 #     feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow, event_voxel=ev)
-                #     for i in range(4):
-                #         for blk in self.fusion_attens[i]:
-                #             feature_after[i] = blk(feature_after[i], feature_init[i])
+                #     # for i in range(4):
+                #     #     for blk in self.fusion_attens[i]:
+                #     #         feature_after[i] = blk(feature_after[i], feature_init[i])
+                bin = 5
+                ev2 = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                ev1 = torch.cat([event_voxel_before[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                flow = self.flow_net(ev1, ev2)[-1]
+                feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow, event_voxel=ev2)
                 ##########################################
 
                 # ################# for bflow ################
-                # 把B C H W -> B C C//2 H W
-                bin = event_voxel.shape[1]//10
-                ev = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(10)], dim=1)
-                flow = self.flow_net(ev)[-1]
-                flows = flow.get_flow_from_reference(lookup_timestamps)
+                # # 把B C H W -> B C C//2 H W
+                # bin = event_voxel.shape[1]//10
+                # ev = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(10)], dim=1)
+                # flow = self.flow_net(ev)[-1]
+                # flows = flow.get_flow_from_reference(lookup_timestamps)
 
-                for iter in range(len(lookup_timestamps)-1, 0, -1):
-                    flows_split.append(flows[iter] - flows[iter-1])
-                flows_split.append(flows[0])
-                flows_split = flows_split[::-1]
+                # for iter in range(len(lookup_timestamps)-1, 0, -1):
+                #     flows_split.append(flows[iter] - flows[iter-1])
+                # flows_split.append(flows[0])
+                # flows_split = flows_split[::-1]
 
-                # bin = event_voxel.shape[1]//4
-                # ev = torch.cat([ev[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(4)], dim=1)
-                for iter in range(len(lookup_timestamps)):
-                    ev = event_voxel[:, iter*20:(iter+1)*20]
-                    bin = 5
-                    ev = torch.cat([ev[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-                    flow = flows_split[iter]
-                    # tenMetricone = self.softsplat_net(tenEncone=None, tenForward=flow, tenMetricone=None, event_voxel=ev) * 2.0
-                    # feature_after = self.softsplat_net(tenEncone=feature_init, tenForward=flow, tenMetricone=tenMetricone)
-                    feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow, event_voxel=ev)
-                    # for i in range(4):
-                    #     for blk in self.fusion_attens[i]:
-                    #         feature_after[i] = blk(feature_after[i], feature_init[i])
+                # # bin = event_voxel.shape[1]//4
+                # # ev = torch.cat([ev[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(4)], dim=1)
+                # for iter in range(len(lookup_timestamps)):
+                #     ev = event_voxel[:, iter*20:(iter+1)*20]
+                #     bin = 5
+                #     ev = torch.cat([ev[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                #     flow = flows_split[iter]
+                #     # tenMetricone = self.softsplat_net(tenEncone=None, tenForward=flow, tenMetricone=None, event_voxel=ev) * 2.0
+                #     # feature_after = self.softsplat_net(tenEncone=feature_init, tenForward=flow, tenMetricone=tenMetricone)
+                #     feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow, event_voxel=ev)
+                #     # for i in range(4):
+                #     #     for blk in self.fusion_attens[i]:
+                #     #         feature_after[i] = blk(feature_after[i], feature_init[i])
                 # ##########################################
                 # # 把B C H W -> B C C//2 H W
                 # bin = 2

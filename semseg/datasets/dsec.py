@@ -236,8 +236,11 @@ class DSEC(Dataset):
                 rgb_path = get_new_name(lbl_path, idx_diff=0-self.index_window).replace(self.seg_gt_dirname, f'/leftImg8bit_t0').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
                 ### event ###
                 event_path = get_new_name(lbl_path, idx_diff=-0-self.index_window).replace(self.seg_gt_dirname, f'/event_t0_t{self.time_window}/event_{bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
+                event_path_before = get_new_name(lbl_path, idx_diff=-0-2*self.index_window).replace(self.seg_gt_dirname, f'/event_t-{self.time_window}_t0/event_{bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
                 event_voxel = np.load(event_path, allow_pickle=True)
+                event_voxel_before = np.load(event_path_before, allow_pickle=True)
                 sample['event'] = torch.from_numpy(event_voxel[:, :440])
+                sample['event_before'] = torch.from_numpy(event_voxel_before[:, :440])
                 ### flow ###
                 if not self.flow_net_flag:
                     flow_path = rgb_path.replace('/leftImg8bit_t0', f'/flow_t0_t{self.time_window}').replace('.png', '.npy')
@@ -290,6 +293,8 @@ class DSEC(Dataset):
         if self.time_window != 0:
             event_voxel = sample['event']
             del sample['event']
+            event_voxel_before = sample['event_before']
+            del sample['event_before']
         # img_next = sample['img_next']
         # del sample['img_next']
 
@@ -299,6 +304,7 @@ class DSEC(Dataset):
         sample = [sample[k] for k in self.modals]
         if self.time_window != 0:
             sample.append(event_voxel)
+            sample.append(event_voxel_before)
             if not self.flow_net_flag:
                 sample.append(flow)
         return seq_name, seq_idx, sample, label
