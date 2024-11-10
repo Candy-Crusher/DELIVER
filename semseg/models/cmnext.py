@@ -37,7 +37,8 @@ class CMNeXt(BaseModel):
 
         if not self.backbone_flag:
         # if True:
-            feature_dims = [64, 128, 320, 512]
+            # feature_dims = [64, 128, 320, 512]
+            feature_dims = [3]
             self.softsplat_net = Synthesis(feature_dims, activation='PReLU')
             
             # self.fusion_attens = nn.ModuleList(
@@ -58,7 +59,7 @@ class CMNeXt(BaseModel):
         self.apply(self._init_weights)
 
     def forward(self, x: list, rgb_next: Tensor=None, lookup_timestamps: list=[0.5, 1.0]) -> list:
-        feature_init = self.backbone(x)
+        # feature_init = self.backbone(x)
         y_mid = None
         if len(x) != 1:
             flows_split = []
@@ -89,7 +90,7 @@ class CMNeXt(BaseModel):
                 feature_after = self.softsplat_net(tenEncone=feature_init, tenForward=flow, event_voxel=event_voxel)
 
             else:
-                feature_after = feature_init
+                # feature_after = feature_init
                 # lookup_timestamps = [0.5,1]
                 ################ for eraft ################
                 # for iter in range(event_voxel.shape[1]//20):
@@ -110,7 +111,9 @@ class CMNeXt(BaseModel):
                 ev2 = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
                 ev1 = torch.cat([event_voxel_before[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
                 flow = self.flow_net(ev1, ev2)[-1]
-                feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow, event_voxel=ev2)
+                # feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow, event_voxel=ev2)
+                x = self.softsplat_net(tenEncone=[x[0]], tenForward=flow, event_voxel=ev2)
+                feature_after = self.backbone(x)
 
                 # # iterative all version
                 # mid_supervised = False

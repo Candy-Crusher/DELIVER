@@ -542,14 +542,14 @@ class Synthesis(torch.nn.Module):
             def __init__(self, embed_dim, activation_layer=None):
                 super().__init__()
                 # self.refine_type = ['conv-relu-conv' if embed_dim[i] == 3 else 'more-more-conv' for i in range(len(embed_dim))]
-                # self.refine_type = ['conv-relu-conv' if embed_dim[i] == 3 else 'more-more-conv' for i in range(len(embed_dim))]
+                self.refine_type = ['conv-relu-conv' if embed_dim[i] == 3 else 'more-more-conv' for i in range(len(embed_dim))]
                 self.nets = nn.ModuleList([
                     # nn.Sequential(
                     # Basic('conv-relu-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
                     # Basic('more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True)
                     # Basic('more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True, activation_layer=activation_layer)
-                    Basic('more-more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True, activation_layer=activation_layer)
-                    # Basic(self.refine_type[i], [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True, activation_layer=activation_layer)
+                    # Basic('more-more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True, activation_layer=activation_layer)
+                    Basic(self.refine_type[i], [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True, activation_layer=activation_layer)
                     # Basic('more-more-conv-k5', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True, activation_layer=activation_layer)
                     # Basic('dilation-more-more-conv', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True, activation_layer=activation_layer)
                     # Basic('multi-attention', [embed_dim[i]+1, embed_dim[i], embed_dim[i]], True, activation_layer=activation_layer)
