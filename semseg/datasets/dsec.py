@@ -193,7 +193,8 @@ class DSEC(Dataset):
         self.flow_net_flag = flow_net_flag
         self.iterframe_test = False
         print(f"Loading DSEC dataset with {duration}ms duration.")
-        self.seg_gt_dirname = f'/gtFine_t{self.time_window}'
+        self.seg_gt_dirname = f'/gtFine_t1_interpolation'
+        # self.seg_gt_dirname = f'/gtFine_t{self.time_window}'
         # self.files = sorted(glob.glob(os.path.join(*[root, 'leftImg8bit', split, '*', '*.png'])))
         # self.n_classes = 13
         self.files = sorted(glob.glob(os.path.join(*[root, self.seg_gt_dirname[1:], split, '*', f'*_gtFine_labelTrainIds{self.n_classes}.png'])))
@@ -256,7 +257,8 @@ class DSEC(Dataset):
                     flow = np.load(flow_path, allow_pickle=True)
                     sample['flow'] = torch.from_numpy(flow[:, :440])
         else:
-            rgb_path = lbl_path.replace(self.seg_gt_dirname, '/leftImg8bit_t0').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
+            # rgb_path = lbl_path.replace(self.seg_gt_dirname, '/leftImg8bit_t0').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
+            rgb_path = lbl_path.replace(self.seg_gt_dirname, '/leftImg8bit_t1_interpolation').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
 
         # lbl_path_t0 = get_new_name(lbl_path, idx_diff=-self.index_window).replace(self.seg_gt_dirname, '/gtFine_t0')
         # rgb_ref = lbl_path.replace(self.seg_gt_dirname, '/leftImg8bit_next').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')

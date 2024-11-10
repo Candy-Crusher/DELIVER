@@ -4,12 +4,27 @@ SAVE_DIR        : 'output'          # output folder name used for saving the mod
 MODEL:
   NAME          : CMNeXt                                            # name of the model you are using
   BACKBONE      : CMNeXt-B2                                         # model variant
-  PRETRAINED    : 'checkpoints/pretrained/segformer/mit_b2.pth'     # backbone model's weight 
+  BACKBONE_FLAG : True
+  PRETRAINED_BACKBONE    : 'checkpoints/pretrained/segformer/mit_b2.pth'     # backbone model's weight 
+  # PRETRAINED        : '/home/xiaoshan/work/adap_v/DELIVER/output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch356_73.55.pth'     # backbone model's weight 
+  PRETRAINED    : '/home/xy/work/adap_v/DELIVER/output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch220_73.99.pth'
+  FLOW_NET_FLAG : False
+  FLOW_NET      : 'eraft'
+  RESUME_FLOWNET: 'dsec.tar'
+  # FLOW_NET      : 'bflow'
+  # RESUME_FLOWNET: 'E_LU4_BD2.ckpt'
+  # RESUME_FLOWNET: 'flow_network.pth'
   RESUME        : ''                                                # checkpoint file 
+  # RESUME_FLOWNET: ''
 
 DATASET:
   NAME          : DSEC                                          # dataset name to be trained with (camvid, cityscapes, ade20k)
-  ROOT          : '/home/xiaoshan/work/adap_v/my_proj/data/DSEC/night'                                   # dataset root path
+  # ROOT          : '/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime/day'                                   # dataset root path
+  ROOT          : '/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_100/night'                                   # dataset root path
+  # ROOT          : '/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_100_N/day'                                   # dataset root path
+  # ROOT          : '/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_50_N/day'                                   # dataset root path
+  # DURATION      : 100
+  DURATION      : 50
   IGNORE_LABEL  : 255
   MODALS        : ['img']
   # MODALS        : ['img', 'depth']
@@ -17,11 +32,11 @@ DATASET:
   # MODALS        : ['img', 'lidar']
   # MODALS        : ['img', 'depth', 'event']
   # MODALS        : ['img', 'depth', 'lidar']
-  # MODALS        : ['img', 'depth', 'event', 'lidar']
+  # MODALS        : ['img', 'depthd', 'event', 'lidar']
 
 TRAIN:
   IMAGE_SIZE    : [440, 640]    # training image size in (h, w)
-  BATCH_SIZE    : 8               # batch size used to train
+  BATCH_SIZE    : 3               # batch size used to train
   EPOCHS        : 400             # number of epochs to train
   EVAL_START    : 0             # evaluation interval start
   EVAL_INTERVAL : 1               # evaluation interval during training
@@ -34,12 +49,12 @@ LOSS:
 
 OPTIMIZER:
   NAME          : adamw           # optimizer name
-  LR            : 0.00006         # initial learning rate used in optimizer
-  WEIGHT_DECAY  : 0.01            # decay rate used in optimizer
+  LR            : 0.0001         # initial learning rate used in optimizer
+  WEIGHT_DECAY  : 0.005            # decay rate used in optimizer
 
 SCHEDULER:
   NAME          : warmuppolylr    # scheduler name
-  POWER         : 0.9             # scheduler power
+  POWER         : 0.95             # scheduler power
   WARMUP        : 10              # warmup epochs used in scheduler
   WARMUP_RATIO  : 0.1             # warmup ratio
   
@@ -47,8 +62,8 @@ SCHEDULER:
 EVAL:
   # MODEL_PATH    : 'output/DSEC/cmnext_b2_kitti360_rgb.pth'
   # MODEL_PATH    : 'output/DSEC/cmnext_b2_kitti360_rgbd.pth'
-  # MODEL_PATH    : 'output/DSEC/cmnext_b2_kitti360_rgb.pth'
   # MODEL_PATH    : 'output/DSEC/cmnext_b2_deliver_rgbe.pth'
+  # MODEL_PATH    : 'output/DSEC/cmnext_b2_kitti360_rgb.pth'
   # MODEL_PATH    : 'output/DSEC/cmnext_b2_kitti360_rgbl.pth'
   # MODEL_PATH    : 'output/DSEC/cmnext_b2_kitti360_rgbde.pth'
   # MODEL_PATH    : 'output/DSEC/cmnext_b2_kitti360_rgbdl.pth'

@@ -35,7 +35,8 @@ class CMNeXt(BaseModel):
             self.flow_net = ERAFT(n_first_channels=self.n_first_channels)
             # self.flow_net = RAFTSpline()
 
-        if not self.backbone_flag:
+        # if not self.backbone_flag:
+        if True:
             feature_dims = [64, 128, 320, 512]
             self.softsplat_net = Synthesis(feature_dims, activation='PReLU')
             
@@ -80,12 +81,12 @@ class CMNeXt(BaseModel):
                 # flow = torch.zeros(event_voxel.shape[0], 2, H, W).to(x[0].device)
                 ##########################################
 
-                tenMetricone = self.softsplat_net(tenEncone=None, tenForward=flow, tenMetricone=None, event_voxel=event_voxel) * 2.0
+                # tenMetricone = self.softsplat_net(tenEncone=None, tenForward=flow, tenMetricone=None, event_voxel=event_voxel) * 2.0
                 # flows_split.append(flow)
                 # tenMetricones.append(tenMetricone)
 
-                feature_after = self.softsplat_net(tenEncone=feature_init, tenForward=flow, tenMetricone=tenMetricone)
-                # feature_after = self.softsplat_net(tenEncone=feature_init, tenForward=flow, event_voxel=event_voxel)
+                # feature_after = self.softsplat_net(tenEncone=feature_init, tenForward=flow, tenMetricone=tenMetricone)
+                feature_after = self.softsplat_net(tenEncone=feature_init, tenForward=flow, event_voxel=event_voxel)
 
             else:
                 feature_after = feature_init
@@ -104,32 +105,32 @@ class CMNeXt(BaseModel):
                 #     #     for blk in self.fusion_attens[i]:
                 #     #         feature_after[i] = blk(feature_after[i], feature_init[i])
 
-                # # one time all version
-                # bin = 5
-                # ev2 = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-                # ev1 = torch.cat([event_voxel_before[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-                # flow = self.flow_net(ev1, ev2)[-1]
-                # feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow, event_voxel=ev2)
-
-                # iterative all version
-                mid_supervised = False
-                event_voxel_after = x[3]
+                # one time all version
                 bin = 5
-                ev_t1_t2 = torch.cat([event_voxel_after[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-                ev_t0_t1 = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-                ev_before = torch.cat([event_voxel_before[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-                flow_t0_t1 = self.flow_net(ev_before, ev_t0_t1)[-1]
-                flow_t1_t2 = self.flow_net(ev_t0_t1, ev_t1_t2)[-1]
-                if mid_supervised:
-                    feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow_t0_t1, event_voxel=ev_t0_t1)
-                    y_mid = self.decode_head(feature_after)
-                    y_mid = F.interpolate(y_mid, size=x[0].shape[2:], mode='bilinear', align_corners=False)
-                    feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow_t1_t2, event_voxel=ev_t1_t2)
-                else:
-                    ev = torch.cat([ev_t0_t1, ev_t1_t2], dim=1)
-                    bin = 2
-                    ev = torch.cat([ev[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(4)], dim=1)
-                    feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow_t0_t1+flow_t1_t2, event_voxel=ev_t0_t1)
+                ev2 = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                ev1 = torch.cat([event_voxel_before[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                flow = self.flow_net(ev1, ev2)[-1]
+                feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow, event_voxel=ev2)
+
+                # # iterative all version
+                # mid_supervised = False
+                # event_voxel_after = x[3]
+                # bin = 5
+                # ev_t1_t2 = torch.cat([event_voxel_after[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                # ev_t0_t1 = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                # ev_before = torch.cat([event_voxel_before[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                # flow_t0_t1 = self.flow_net(ev_before, ev_t0_t1)[-1]
+                # flow_t1_t2 = self.flow_net(ev_t0_t1, ev_t1_t2)[-1]
+                # if mid_supervised:
+                #     feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow_t0_t1, event_voxel=ev_t0_t1)
+                #     y_mid = self.decode_head(feature_after)
+                #     y_mid = F.interpolate(y_mid, size=x[0].shape[2:], mode='bilinear', align_corners=False)
+                #     feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow_t1_t2, event_voxel=ev_t1_t2)
+                # else:
+                #     ev = torch.cat([ev_t0_t1, ev_t1_t2], dim=1)
+                #     bin = 2
+                #     ev = torch.cat([ev[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(4)], dim=1)
+                #     feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow_t0_t1+flow_t1_t2, event_voxel=ev_t0_t1)
                 ##########################################
 
                 # ################# for bflow ################
