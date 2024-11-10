@@ -35,8 +35,8 @@ class CMNeXt(BaseModel):
             self.flow_net = ERAFT(n_first_channels=self.n_first_channels)
             # self.flow_net = RAFTSpline()
 
-        # if not self.backbone_flag:
-        if True:
+        if not self.backbone_flag:
+        # if True:
             feature_dims = [64, 128, 320, 512]
             self.softsplat_net = Synthesis(feature_dims, activation='PReLU')
             
