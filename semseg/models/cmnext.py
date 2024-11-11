@@ -14,6 +14,7 @@ from semseg.models.modules.flow_network.eraft.eraft import ERAFT
 from semseg.models.modules.flow_network.bflow.raft_spline.raft import RAFTSpline
 from semseg.models.modules.softsplat.frame_synthesis import *
 from semseg.models.modules.softsplat.softsplat import *
+from semseg.models.modules.memory.memory_encoder import *
 from semseg.utils.pac import SupervisedGaussKernel2d
 from semseg.losses import calc_photometric_loss, reduce_photometric_loss, LapLoss, VGGLoss, outlier_penalty_loss
 from fvcore.nn import flop_count_table, FlopCountAnalysis
@@ -32,8 +33,8 @@ class CMNeXt(BaseModel):
             #     for i in range(len(feature_dims))
             # )
             self.n_first_channels = 4
-            # self.flow_net = ERAFT(n_first_channels=self.n_first_channels)
-            self.flow_net = RAFTSpline()
+            self.flow_net = ERAFT(n_first_channels=self.n_first_channels)
+            # self.flow_net = RAFTSpline()
 
         if not self.backbone_flag:
         # if True:
@@ -41,6 +42,25 @@ class CMNeXt(BaseModel):
             # feature_dims = [3]
             self.softsplat_net = Synthesis(feature_dims, activation='PReLU')
             
+            self.MemoryEncoder = nn.ModuleList(
+                MemoryEncoder(in_dim=feature_dims[i], total_stride=2**i)
+                for i in range(len(feature_dims))
+            )
+            self.fusion_attens = nn.ModuleList(
+                # Attention(dim=feature_dims[i], num_heads=8, bias=False)
+                nn.ModuleList(
+                    MultiAttentionBlock(
+                    dim=feature_dims[i],
+                    num_heads=8,
+                    LayerNorm_type='WithBias',
+                    ffn_expansion_factor=2.66,
+                    bias=False,
+                    is_DA=False)
+                    for _ in range(2)
+                )
+                for i in range(len(feature_dims))
+            )
+
             # self.fusion_attens = nn.ModuleList(
             #     # Attention(dim=feature_dims[i], num_heads=8, bias=False)
             #     nn.ModuleList(
@@ -114,8 +134,54 @@ class CMNeXt(BaseModel):
                 # feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow, event_voxel=ev2)
                 # # x = self.softsplat_net(tenEncone=[x[0]], tenForward=flow, event_voxel=ev2)
                 # # feature_after = self.backbone(x)
+                # y_mid = self.decode_head(feature_after)
+                # y.append(F.interpolate(y_mid, size=x[0].shape[2:], mode='bilinear', align_corners=False))
+                # return y
 
                 # iterative all version
+
+                ##################### eraft memory #################
+                mid_supervised = False
+                event_voxel_after = x[3]
+                bin = 5
+                ev_t1_t2 = torch.cat([event_voxel_after[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                ev_t0_t1 = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                ev_before = torch.cat([event_voxel_before[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                flow_t0_t1 = self.flow_net(ev_before, ev_t0_t1)[-1]
+                flow_t1_t2 = self.flow_net(ev_t0_t1, ev_t1_t2)[-1]
+                if mid_supervised:
+                    feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow_t0_t1, event_voxel=ev_t0_t1)
+                    y_mid = self.decode_head(feature_after)
+                    y_mid = F.interpolate(y_mid, size=x[0].shape[2:], mode='bilinear', align_corners=False)
+                    feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow_t1_t2, event_voxel=ev_t1_t2)
+                else:
+                    # t0 memory
+                    ## decode memory
+                    y_t0 = self.decode_head(feature_init)
+                    self.memory_bank = [self.MemoryEncoder[i](feature_after[i], y_t0).detach() for i in range(4)]
+
+                    # t0 → t1
+                    feature_t1 = self.softsplat_net(tenEncone=feature_init, tenForward=flow_t0_t1, event_voxel=ev_t0_t1)
+                    ## memory attention
+                    feature_t1 = [self.fusion_attens[i][0](feature_t1[i], feature_t1[i]) for i in range(4)]
+                    feature_t1 = [self.fusion_attens[i][1](self.memory_bank[i], feature_t1[i]) for i in range(4)]
+                    y_t1 = self.decode_head(feature_t1)
+                    self.memory_bank = [self.MemoryEncoder[i](feature_t1[i], y_t1).detach() for i in range(4)]
+
+                    # t1 → t2
+                    feature_t2 = self.softsplat_net(tenEncone=feature_t1, tenForward=flow_t1_t2, event_voxel=ev_t1_t2)
+                    ## memory attention
+                    feature_t2 = [self.fusion_attens[i][0](feature_t2[i], feature_t2[i]) for i in range(4)]
+                    feature_t2 = [self.fusion_attens[i][1](self.memory_bank[i], feature_t2[i]) for i in range(4)]
+                    y_t2 = self.decode_head(feature_t2)
+                    y.append(F.interpolate(y_t2, size=x[0].shape[2:], mode='bilinear', align_corners=False))
+                    return y
+
+                    # ev = torch.cat([ev_t0_t1, ev_t1_t2], dim=1)
+                    # bin = 2
+                    # ev = torch.cat([ev[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(4)], dim=1)
+                    # feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow_t0_t1+flow_t1_t2, event_voxel=ev_t0_t1)
+                ##########################################
 
                 # ##################### for eraft ################
                 # flows = []
@@ -135,24 +201,24 @@ class CMNeXt(BaseModel):
                 # return y
             
                 ###################### for bflow ################
-                # import ipdb; ipdb.set_trace()
-                lookup_timestamps = [0.2, 0.4, 0.6, 0.8, 1.0]
-                ev = torch.cat([event_voxel_before, event_voxel], dim=1)
-                assert ev.shape[1] == 40
-                bin = event_voxel.shape[1]//10
-                ev = torch.cat([ev[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(10)], dim=1)
-                flow = self.flow_net(ev)[-1]
-                flows = flow.get_flow_from_reference(lookup_timestamps)
-                for t in range(5):
-                    flow = flows[t]
-                    ev_all = event_voxel[:, :(t+1)*4]
-                    bin = t+1
-                    assert ev_all.shape[1] == bin*4
-                    ev_all = torch.cat([ev_all[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(4)], dim=1)
-                    feature_after = self.softsplat_net(tenEncone=feature_init, tenForward=flow, event_voxel=ev_all)
-                    y_mid = self.decode_head(feature_after)
-                    y.append(F.interpolate(y_mid, size=x[0].shape[2:], mode='bilinear', align_corners=False))
-                return y
+                # # import ipdb; ipdb.set_trace()
+                # lookup_timestamps = [0.2, 0.4, 0.6, 0.8, 1.0]
+                # ev = torch.cat([event_voxel_before, event_voxel], dim=1)
+                # assert ev.shape[1] == 40
+                # bin = event_voxel.shape[1]//10
+                # ev = torch.cat([ev[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(10)], dim=1)
+                # flow = self.flow_net(ev)[-1]
+                # flows = flow.get_flow_from_reference(lookup_timestamps)
+                # for t in range(5):
+                #     flow = flows[t]
+                #     ev_all = event_voxel[:, :(t+1)*4]
+                #     bin = t+1
+                #     assert ev_all.shape[1] == bin*4
+                #     ev_all = torch.cat([ev_all[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(4)], dim=1)
+                #     feature_after = self.softsplat_net(tenEncone=feature_init, tenForward=flow, event_voxel=ev_all)
+                #     y_mid = self.decode_head(feature_after)
+                #     y.append(F.interpolate(y_mid, size=x[0].shape[2:], mode='bilinear', align_corners=False))
+                # return y
 
                 # mid_supervised = False
                 # event_voxel_after = x[3]# bin = 5
