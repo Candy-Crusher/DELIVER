@@ -42,24 +42,19 @@ class CMNeXt(BaseModel):
             # feature_dims = [3]
             self.softsplat_net = Synthesis(feature_dims, activation='PReLU')
             
-            self.MemoryEncoder = nn.ModuleList(
-                MemoryEncoder(in_dim=feature_dims[i], total_stride=2**i)
-                for i in range(len(feature_dims))
-            )
-            self.fusion_attens = nn.ModuleList(
-                # Attention(dim=feature_dims[i], num_heads=8, bias=False)
-                nn.ModuleList(
-                    MultiAttentionBlock(
-                    dim=feature_dims[i],
-                    num_heads=8,
-                    LayerNorm_type='WithBias',
-                    ffn_expansion_factor=2.66,
-                    bias=False,
-                    is_DA=False)
-                    for _ in range(2)
-                )
-                for i in range(len(feature_dims))
-            )
+            # self.MemoryEncoder = nn.ModuleList(
+            #     MemoryEncoder(in_dim=feature_dims[i], total_stride=2**i)
+            #     for i in range(len(feature_dims))
+            # )
+            self.MemoryEncoder = MemoryEncoder(in_dim=feature_dims[-1], total_stride=8)
+            self.fusion_attens = MultiAttentionBlock(
+                                    dim=feature_dims[-1],
+                                    num_heads=8,
+                                    LayerNorm_type='WithBias',
+                                    ffn_expansion_factor=2.66,
+                                    bias=False,
+                                    is_DA=True
+                                )
 
             # self.fusion_attens = nn.ModuleList(
             #     # Attention(dim=feature_dims[i], num_heads=8, bias=False)
@@ -158,21 +153,21 @@ class CMNeXt(BaseModel):
                     # t0 memory
                     ## decode memory
                     y_t0 = self.decode_head(feature_init)
-                    self.memory_bank = [self.MemoryEncoder[i](feature_after[i], y_t0).detach() for i in range(4)]
+                    # self.memory_bank = [self.MemoryEncoder[i](feature_after[i], y_t0).detach() for i in range(4)]
+                    self.memory_bank = self.MemoryEncoder(feature_init[-1], y_t0).detach()
 
                     # t0 → t1
                     feature_t1 = self.softsplat_net(tenEncone=feature_init, tenForward=flow_t0_t1, event_voxel=ev_t0_t1)
-                    ## memory attention
-                    feature_t1 = [self.fusion_attens[i][0](feature_t1[i], feature_t1[i]) for i in range(4)]
-                    feature_t1 = [self.fusion_attens[i][1](self.memory_bank[i], feature_t1[i]) for i in range(4)]
+                    ## memory attention Fw, F0_c=None, Kd=None
+                    feature_t1[-1] = self.fusion_attens(Fw=feature_t1[-1], F0_c=None, Kd=self.memory_bank)
                     y_t1 = self.decode_head(feature_t1)
-                    self.memory_bank = [self.MemoryEncoder[i](feature_t1[i], y_t1).detach() for i in range(4)]
+                    # self.memory_bank = [self.MemoryEncoder[i](feature_t1[i], y_t1).detach() for i in range(4)]
+                    self.memory_bank = self.MemoryEncoder(feature_t1[-1], y_t1).detach()
 
                     # t1 → t2
                     feature_t2 = self.softsplat_net(tenEncone=feature_t1, tenForward=flow_t1_t2, event_voxel=ev_t1_t2)
                     ## memory attention
-                    feature_t2 = [self.fusion_attens[i][0](feature_t2[i], feature_t2[i]) for i in range(4)]
-                    feature_t2 = [self.fusion_attens[i][1](self.memory_bank[i], feature_t2[i]) for i in range(4)]
+                    feature_t2[-1] = self.fusion_attens(Fw=feature_t2[-1], F0_c=None, Kd=self.memory_bank)
                     y_t2 = self.decode_head(feature_t2)
                     y.append(F.interpolate(y_t2, size=x[0].shape[2:], mode='bilinear', align_corners=False))
                     return y

@@ -204,7 +204,7 @@ class MultiAttentionBlock(torch.nn.Module):
             self.norm4 = LayerNorm(dim, LayerNorm_type)
             self.ffn2 = FeedForward(dim, ffn_expansion_factor, bias)
 
-    def forward(self, Fw, F0_c, Kd=None):
+    def forward(self, Fw, F0_c=None, Kd=None):
         if F0_c is not None:
             Fw = Fw + self.co_attn(self.norm1(Fw), F0_c)
         else:
