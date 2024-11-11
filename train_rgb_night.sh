@@ -1,8 +1,8 @@
 # export PYTHONPATH="~/work/adap_v/DELIVER"
 export PYTHONPATH="~/work/adap_v/DELIVER:$(pwd)"
 
-# export CUDA_VISIBLE_DEVICES=0,1,2,3
-export CUDA_VISIBLE_DEVICES=4,5,6,7
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+# export CUDA_VISIBLE_DEVICES=4,5,6,7
 dataset='dsec'
 train_dataset='night'
 input_type='rgb'

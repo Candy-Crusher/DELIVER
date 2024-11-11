@@ -15,15 +15,15 @@ model_params = {
     "use_boundary_images": False,
     "use_events": True,
     "num_bins": {
-        "correlation": 6,
-        "context": 5
+        "correlation": 5,
+        "context": 6
     },
     "correlation": {
         "use_cosine_sim": False,
          "ev": {
-            "target_indices": [1, 2, 3, 4],
-            "levels": [1, 1, 1, 4],
-            "radius": [4, 4, 4, 4]
+            "target_indices": [1, 2, 3, 4, 5],
+            "levels": [1, 1, 1, 1, 4],
+            "radius": [4, 4, 4, 4, 4]
             },
         "img": {
             "levels": 4,

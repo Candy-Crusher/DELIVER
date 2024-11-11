@@ -126,7 +126,7 @@ def evaluate(model, dataloader, device, save_dir=None, palette=None):
         else:
             # preds, _ , _ = model(images, event_voxel, rgb_next, flow, psi)
             # preds, _ = model(images, event_voxel, rgb_next, flow)
-            preds, preds_mid = model(images)
+            preds = model(images)[-1]
             # preds, _ = model(images, event_voxel)
             # preds = preds.softmax(dim=1)
             # preds = label_ref
@@ -146,25 +146,29 @@ def evaluate(model, dataloader, device, save_dir=None, palette=None):
                 if not os.path.exists(save_path):
                     os.makedirs(save_path)
                 pred_argmax = preds[i].argmax(dim=0).cpu().numpy().astype(np.uint8)
-                rgb_pred = palette_array[pred_argmax]
-                rgb_lbl = palette_array[labels[i].cpu().numpy().astype(np.uint8)]
-                # 将numpy数组转换为PIL图像
-                pred_argmax = Image.fromarray(pred_argmax)
-                rgb_pred = Image.fromarray(rgb_pred.astype(np.uint8))
-                rgb_lbl = Image.fromarray(rgb_lbl.astype(np.uint8))
-                # image 需要反normalize Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-                denorm_img = denormalize(images[0][i].cpu()).squeeze()
-                img = Image.fromarray((denorm_img.numpy().transpose(1, 2, 0) * 255).astype(np.uint8))
-                pred_argmax.save(save_path / idx.replace('.npy', '_labelTrainIds11.png'))
-                concatenated_image = concatenate_images([img,rgb_lbl,rgb_pred], direction='horizontal')
-                concatenated_image.save(save_path / idx.replace('.npy', '_color.png'))
-                # rgb_image.save(save_path / idx.replace('.npy', '_color.png'))
-                # rgb_lbl.save(save_path / idx.replace('.npy', '_color_gt.png'))
+                # save as png
+                id_pred = Image.fromarray(pred_argmax.astype(np.uint8))
+                id_pred.save(save_path / idx.replace('.npy', '_labelTrainIds.png'))
 
-                # 计算这张图片的iou
-                metrics_single.update(preds[i].unsqueeze(0), labels[i].unsqueeze(0))
-                ious, miou = metrics_single.compute_iou()
-                iou_dict[seq_names[i]+'_'+idx] = ious
+                # rgb_pred = palette_array[pred_argmax]
+                # rgb_lbl = palette_array[labels[i].cpu().numpy().astype(np.uint8)]
+                # # 将numpy数组转换为PIL图像
+                # pred_argmax = Image.fromarray(pred_argmax)
+                # rgb_pred = Image.fromarray(rgb_pred.astype(np.uint8))
+                # rgb_lbl = Image.fromarray(rgb_lbl.astype(np.uint8))
+                # # image 需要反normalize Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
+                # denorm_img = denormalize(images[0][i].cpu()).squeeze()
+                # img = Image.fromarray((denorm_img.numpy().transpose(1, 2, 0) * 255).astype(np.uint8))
+                # pred_argmax.save(save_path / idx.replace('.npy', '_labelTrainIds11.png'))
+                # concatenated_image = concatenate_images([img,rgb_lbl,rgb_pred], direction='horizontal')
+                # concatenated_image.save(save_path / idx.replace('.npy', '_color.png'))
+                # # rgb_image.save(save_path / idx.replace('.npy', '_color.png'))
+                # # rgb_lbl.save(save_path / idx.replace('.npy', '_color_gt.png'))
+
+                # # 计算这张图片的iou
+                # metrics_single.update(preds[i].unsqueeze(0), labels[i].unsqueeze(0))
+                # ious, miou = metrics_single.compute_iou()
+                # iou_dict[seq_names[i]+'_'+idx] = ious
 
         metrics.update(preds, labels)
     ious, miou = metrics.compute_iou()

@@ -94,6 +94,10 @@ def main(cfg, scene, classes, gpu, save_dir):
                 # delete weights of the first layer
                 flownet_checkpoint.pop('fnet_ev.conv1.weight')
                 flownet_checkpoint.pop('fnet_ev.conv1.bias')
+            if 'update_block.encoder.convc1.weight' in flownet_checkpoint:
+                # delete weights of the first layer
+                flownet_checkpoint.pop('update_block.encoder.convc1.weight')
+                flownet_checkpoint.pop('update_block.encoder.convc1.bias') 
             # if 'cnet.conv1.weight' in flownet_checkpoint:
             #     # delete weights of the second layer
             #     flownet_checkpoint.pop('cnet.conv1.weight')
@@ -176,12 +180,12 @@ def main(cfg, scene, classes, gpu, save_dir):
             with autocast(enabled=train_cfg['AMP']):
                 # logits = model(sample, event_voxel, rgb_next, flow)
                 # logits, feature_loss = model(sample, event_voxel)
-                logits, logits_mid = model(sample)
+                logits = model(sample)[-1]
                 # logits, feature_loss = model(sample, event_voxel, rgb_next, flow)
                 loss = loss_fn(logits, lbls[0])
-                if logits_mid is not None:
-                    loss_mid = loss_fn(logits_mid, lbls[1])
-                    loss += loss_mid
+                # if logits_mid is not None:
+                #     loss_mid = loss_fn(logits_mid, lbls[1])
+                #     loss += loss_mid
                 # loss = loss_fn(logits, lbl) + 0.5*feature_loss + 0.5*consistent_loss
 
             scaler.scale(loss).backward()
