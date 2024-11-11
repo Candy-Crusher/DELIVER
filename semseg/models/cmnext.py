@@ -152,17 +152,19 @@ class CMNeXt(BaseModel):
                 else:
                     # t0 memory
                     ## decode memory
-                    y_t0 = self.decode_head(feature_init)
+                    # y_t0 = self.decode_head(feature_init)
                     # self.memory_bank = [self.MemoryEncoder[i](feature_after[i], y_t0).detach() for i in range(4)]
-                    self.memory_bank = self.MemoryEncoder(feature_init[-1], y_t0).detach()
+                    # self.memory_bank = self.MemoryEncoder(feature_init[-1], y_t0).detach()
+                    self.memory_bank = feature_init[-1]
 
                     # t0 → t1
                     feature_t1 = self.softsplat_net(tenEncone=feature_init, tenForward=flow_t0_t1, event_voxel=ev_t0_t1)
                     ## memory attention Fw, F0_c=None, Kd=None
                     feature_t1[-1] = self.fusion_attens(Fw=feature_t1[-1], F0_c=None, Kd=self.memory_bank)
-                    y_t1 = self.decode_head(feature_t1)
+                    # y_t1 = self.decode_head(feature_t1)
                     # self.memory_bank = [self.MemoryEncoder[i](feature_t1[i], y_t1).detach() for i in range(4)]
-                    self.memory_bank = self.MemoryEncoder(feature_t1[-1], y_t1).detach()
+                    # self.memory_bank = self.MemoryEncoder(feature_t1[-1], y_t1).detach()
+                    self.memory_bank = feature_t1[-1]
 
                     # t1 → t2
                     feature_t2 = self.softsplat_net(tenEncone=feature_t1, tenForward=flow_t1_t2, event_voxel=ev_t1_t2)
