@@ -4,7 +4,7 @@ SAVE_DIR        : 'output'          # output folder name used for saving the mod
 MODEL:
   NAME          : CMNeXt                                            # name of the model you are using
   BACKBONE      : CMNeXt-B2                                         # model variant
-  BACKBONE_FLAG : True
+  BACKBONE_FLAG : False
   PRETRAINED_BACKBONE    : 'checkpoints/pretrained/segformer/mit_b2.pth'     # backbone model's weight 
   # PRETRAINED        : '/home/xiaoshan/work/adap_v/DELIVER/output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch356_73.55.pth'     # backbone model's weight 
   PRETRAINED    : '/home/xy/work/adap_v/DELIVER/output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch220_73.99.pth'
@@ -20,9 +20,9 @@ MODEL:
 DATASET:
   NAME          : DSEC                                          # dataset name to be trained with (camvid, cityscapes, ade20k)
   # ROOT          : '/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime/day'                                   # dataset root path
-  ROOT          : '/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_100/synthesis_N11'                                   # dataset root path
+  ROOT          : '/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_100/synthesis_N11_45'                                   # dataset root path
   # ROOT          : '/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_100/day+synthesis_L'                                   # dataset root path
-  DURATION      : 0
+  DURATION      : 50
   IGNORE_LABEL  : 255
   MODALS        : ['img']
   # MODALS        : ['img', 'depth']

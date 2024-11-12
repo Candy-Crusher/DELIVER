@@ -185,10 +185,11 @@ class DSEC(Dataset):
 
         self.duration = duration
         self.time_window = duration//50
-        if self.n_classes == 34:
-            self.index_window = self.time_window*(50//10)
-        elif self.n_classes == 11:
-            self.index_window = self.time_window*(50//50)
+        dataset = 'dsec'
+        if dataset == 'sdsec':
+            self.index_window = self.duration//10
+        elif dataset == 'dsec':
+            self.index_window = self.duration//50
     
         self.flow_net_flag = flow_net_flag
         self.iterframe_test = False
@@ -240,12 +241,12 @@ class DSEC(Dataset):
                 # event_path = get_new_name(lbl_path, idx_diff=0-self.index_window).replace(self.seg_gt_dirname, f'/event_t0_t{self.time_window}/event_{bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
                 # event_path_before = get_new_name(lbl_path, idx_diff=0-2*self.index_window).replace(self.seg_gt_dirname, f'/event_t-{self.time_window}_t0/event_{bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
                 event_path = get_new_name(lbl_path, idx_diff=0-self.index_window).replace(self.seg_gt_dirname, f'/event_t0_t1/event_{bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
-                event_path_before = get_new_name(lbl_path, idx_diff=0-self.index_window-1).replace(self.seg_gt_dirname, f'/event_t-1_t0/event_{bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
+                event_path_before = get_new_name(lbl_path, idx_diff=0-self.index_window-self.index_window//self.time_window).replace(self.seg_gt_dirname, f'/event_t-1_t0/event_{bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
                 if self.index_window == 2:
-                    event_path_after = get_new_name(lbl_path, idx_diff=0-self.index_window+1).replace(self.seg_gt_dirname, f'/event_t1_t2/event_{bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
+                    event_path_after = get_new_name(lbl_path, idx_diff=0-self.index_window+self.index_window//self.time_window).replace(self.seg_gt_dirname, f'/event_t1_t2/event_{bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
                     event_voxel_after = np.load(event_path_after, allow_pickle=True)
                     sample['event_after'] = torch.from_numpy(event_voxel_after[:, :440])
-                    lbl_path_after = get_new_name(lbl_path, idx_diff=0-self.index_window+1).replace(self.seg_gt_dirname, f'/gtFine_t1')
+                    lbl_path_after = get_new_name(lbl_path, idx_diff=0-self.index_window+self.index_window//self.time_window).replace(self.seg_gt_dirname, f'/gtFine_t1')
                     label_after = io.read_image(lbl_path_after)[0,...].unsqueeze(0)
                     sample['mask_after'] = label_after[:, :440]
                 event_voxel = np.load(event_path, allow_pickle=True)

@@ -206,7 +206,7 @@ def main(cfg, scene, classes, gpu, save_dir):
             #     if param.grad is not None:
             #         grad_norm = torch.norm(param.grad, p=2)
             #         print(grad_norm)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=20, norm_type=2)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=10, norm_type=2)
             scaler.step(optimizer)
             scaler.update()
             scheduler.step()

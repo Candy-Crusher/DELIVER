@@ -103,6 +103,10 @@ class CMNeXt(BaseModel):
 
                 # feature_after = self.softsplat_net(tenEncone=feature_init, tenForward=flow, tenMetricone=tenMetricone)
                 feature_after = self.softsplat_net(tenEncone=feature_init, tenForward=flow, event_voxel=event_voxel)
+                y_mid = self.decode_head(feature_after)
+                y.append(F.interpolate(y_mid, size=x[0].shape[2:], mode='bilinear', align_corners=False))
+                return y
+
 
             else:
                 feature_after = feature_init
@@ -155,21 +159,24 @@ class CMNeXt(BaseModel):
                     # y_t0 = self.decode_head(feature_init)
                     # self.memory_bank = [self.MemoryEncoder[i](feature_after[i], y_t0).detach() for i in range(4)]
                     # self.memory_bank = self.MemoryEncoder(feature_init[-1], y_t0).detach()
-                    self.memory_bank = feature_init[-1]
+                    self.memory_bank = [feature_init[-1]]
 
                     # t0 → t1
                     feature_t1 = self.softsplat_net(tenEncone=feature_init, tenForward=flow_t0_t1, event_voxel=ev_t0_t1)
                     ## memory attention Fw, F0_c=None, Kd=None
-                    feature_t1[-1] = self.fusion_attens(Fw=feature_t1[-1], F0_c=None, Kd=self.memory_bank)
+                    feature_t1[-1] = self.fusion_attens(Fw=feature_t1[-1], F0_c=self.memory_bank[0])
+                    # feature_t1[-1] = self.fusion_attens(Fw=feature_t1[-1], F0_c=None, Kd=self.memory_bank)
                     # y_t1 = self.decode_head(feature_t1)
                     # self.memory_bank = [self.MemoryEncoder[i](feature_t1[i], y_t1).detach() for i in range(4)]
                     # self.memory_bank = self.MemoryEncoder(feature_t1[-1], y_t1).detach()
-                    self.memory_bank = feature_t1[-1]
+                    # self.memory_bank = feature_t1[-1]
+                    self.memory_bank.append(feature_t1[-1])
 
                     # t1 → t2
                     feature_t2 = self.softsplat_net(tenEncone=feature_t1, tenForward=flow_t1_t2, event_voxel=ev_t1_t2)
                     ## memory attention
-                    feature_t2[-1] = self.fusion_attens(Fw=feature_t2[-1], F0_c=None, Kd=self.memory_bank)
+                    # feature_t2[-1] = self.fusion_attens(Fw=feature_t2[-1], F0_c=None, Kd=self.memory_bank)
+                    feature_t2[-1] = self.fusion_attens(Fw=feature_t2[-1], F0_c=self.memory_bank[0], Kd=self.memory_bank[1])
                     y_t2 = self.decode_head(feature_t2)
                     y.append(F.interpolate(y_t2, size=x[0].shape[2:], mode='bilinear', align_corners=False))
                     return y
