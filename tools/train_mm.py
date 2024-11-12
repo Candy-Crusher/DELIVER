@@ -136,14 +136,18 @@ def main(cfg, scene, classes, gpu, save_dir, duration):
     # NOTE
     if not model_cfg['BACKBONE_FLAG']:
         print('Freezing backbone...')
-        # 冻结除 flow_net 和 softsplat_net 之外的所有层
+        # # 冻结除 flow_net 和 softsplat_net 之外的所有层
         for name, param in model.named_parameters():
-            if not 'flow_net' in name and not 'softsplat_net' in name:
-            # if not 'softsplat_net' in name:
+            param.requires_grad = True
+            if 'backbone' in name:
                 param.requires_grad = False
-        for name, param in model.named_parameters():
-            if 'decode_head' in name:
-                param.requires_grad = True
+        # for name, param in model.named_parameters():
+        #     if not 'flow_net' in name and not 'softsplat_net' in name:
+        #     # if not 'softsplat_net' in name:
+        #         param.requires_grad = False
+        # for name, param in model.named_parameters():
+        #     if 'decode_head' in name:
+        #         param.requires_grad = True
         # 检查哪些参数被冻结了
         for name, param in model.named_parameters():
             print(f"{name}: requires_grad={param.requires_grad}")

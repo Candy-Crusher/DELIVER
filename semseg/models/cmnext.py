@@ -137,7 +137,7 @@ class CMNeXt(BaseModel):
                 # iterative all version
 
                 ##################### eraft memory #################
-                mid_supervised = True
+                mid_supervised = False
                 bin = 5
                 ev_t0_t1 = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
                 ev_before = torch.cat([event_voxel_before[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)

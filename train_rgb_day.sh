@@ -13,7 +13,7 @@ NCCL_P2P_DISABLE=1 torchrun --standalone --nproc_per_node=6\
   --input_type ${input_type} \
   --scene ${train_dataset} \
   --classes 11 \
-  --duration 50
+  --duration 100
   # --cfg configs/dsec_rgbe.yaml
   # --cfg configs/deliver_rgbdel.yaml
 
