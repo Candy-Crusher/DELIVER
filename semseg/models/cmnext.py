@@ -166,7 +166,8 @@ class CMNeXt(BaseModel):
                     ## memory attention Fw, F0_c=None, Kd=None
                     feature_t1[-1] = self.fusion_attens(Fw=feature_t1[-1], F0_c=self.memory_bank[0])
                     # feature_t1[-1] = self.fusion_attens(Fw=feature_t1[-1], F0_c=None, Kd=self.memory_bank)
-                    # y_t1 = self.decode_head(feature_t1)
+                    y_t1 = self.decode_head(feature_t1)
+                    y.append(F.interpolate(y_t1, size=x[0].shape[2:], mode='bilinear', align_corners=False))
                     # self.memory_bank = [self.MemoryEncoder[i](feature_t1[i], y_t1).detach() for i in range(4)]
                     # self.memory_bank = self.MemoryEncoder(feature_t1[-1], y_t1).detach()
                     # self.memory_bank = feature_t1[-1]
