@@ -7,18 +7,21 @@ MODEL:
   BACKBONE_FLAG : False
   PRETRAINED_BACKBONE    : 'checkpoints/pretrained/segformer/mit_b2.pth'     # backbone model's weight 
   # PRETRAINED        : '/home/xiaoshan/work/adap_v/DELIVER/output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch356_73.55.pth'     # backbone model's weight 
-  PRETRAINED    : '/home/xy/work/adap_v/DELIVER/output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch220_73.99.pth'
-  FLOW_NET_FLAG : False
-  # FLOW_NET      : 'eraft'
+  # PRETRAINED    : '/home/xy/work/adap_v/DELIVER/output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch220_73.99.pth'
+  PRETRAINED      : '/home/xy/work/adap_v/DELIVER/output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch258_63.93.pth'
+  FLOW_NET_FLAG : True
+  FLOW_NET      : 'eraft'
   # RESUME_FLOWNET: 'dsec.tar'
-  FLOW_NET      : 'bflow'
-  RESUME_FLOWNET: 'E_LU4_BD2.ckpt'
+  RESUME_FLOWNET: '/home/xy/work/adap_v/DELIVER/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch106_0.41733222244595924.pth'
+  # FLOW_NET      : 'bflow'
+  # RESUME_FLOWNET: 'E_LU4_BD2.ckpt'
   # RESUME_FLOWNET: 'flow_network.pth'
   RESUME        : ''                                                # checkpoint file 
-  RESUME_FLOWNET: ''
+  # RESUME_FLOWNET: ''
 
 DATASET:
   NAME          : DSEC                                          # dataset name to be trained with (camvid, cityscapes, ade20k)
+  TYPE          : sdsec
   # ROOT          : '/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime/day'                                   # dataset root path
   ROOT          : '/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_100/synthesis_N11_45'                                   # dataset root path
   # ROOT          : '/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_100/day+synthesis_L'                                   # dataset root path

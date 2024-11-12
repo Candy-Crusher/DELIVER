@@ -28,7 +28,7 @@ import math
 from PIL import Image
 from torchviz import make_dot
 
-def main(cfg, scene, classes, gpu, save_dir):
+def main(cfg, scene, classes, gpu, save_dir, duration):
     start = time.time()
     best_mIoU = 0.0
     best_epoch = 0
@@ -43,14 +43,14 @@ def main(cfg, scene, classes, gpu, save_dir):
 
     traintransform = get_train_augmentation(train_cfg['IMAGE_SIZE'], seg_fill=dataset_cfg['IGNORE_LABEL'])
     valtransform = get_val_augmentation(eval_cfg['IMAGE_SIZE'])
-    trainset = eval(dataset_cfg['NAME'])(dataset_cfg['ROOT'], 'train', classes, traintransform, dataset_cfg['MODALS'], duration=dataset_cfg['DURATION'], flow_net_flag=model_cfg['FLOW_NET_FLAG'])
+    trainset = eval(dataset_cfg['NAME'])(dataset_cfg['ROOT'].replace("${DURATION}", str(duration)), 'train', classes, traintransform, dataset_cfg['MODALS'], duration=duration, flow_net_flag=model_cfg['FLOW_NET_FLAG'], dataset_type=dataset_cfg['TYPE'])
     # 计算补齐后的目标长度
     if len(trainset) % train_cfg['BATCH_SIZE'] != 0:
         num_batches = math.ceil(len(trainset) / train_cfg['BATCH_SIZE'])
         target_length = num_batches * train_cfg['BATCH_SIZE']
         trainset = ExtendedDSEC(trainset, target_length)
-    valset = eval(dataset_cfg['NAME'])(dataset_cfg['ROOT'], 'val', classes, valtransform, dataset_cfg['MODALS'], duration=dataset_cfg['DURATION'], flow_net_flag=model_cfg['FLOW_NET_FLAG'])
-    # valset = eval(dataset_cfg['NAME'])(dataset_cfg['ROOT'], 'train', classes, valtransform, dataset_cfg['MODALS'], duration=dataset_cfg['DURATION'], flow_net_flag=model_cfg['FLOW_NET_FLAG'])
+    valset = eval(dataset_cfg['NAME'])(dataset_cfg['ROOT'].replace("${DURATION}", str(duration)), 'val', classes, valtransform, dataset_cfg['MODALS'], duration=duration, flow_net_flag=model_cfg['FLOW_NET_FLAG'], dataset_type=dataset_cfg['TYPE'])
+    # valset = eval(dataset_cfg['NAME'])(dataset_cfg['ROOT'].replace("${DURATION}", str(duration)), 'train', classes, valtransform, dataset_cfg['MODALS'], duration=duration, flow_net_flag=model_cfg['FLOW_NET_FLAG'], dataset_type=dataset_cfg['TYPE'])
     class_names = trainset.SEGMENTATION_CONFIGS[classes]["CLASSES"]
 
     model = eval(model_cfg['NAME'])(model_cfg['BACKBONE'], trainset.n_classes, dataset_cfg['MODALS'], model_cfg['BACKBONE_FLAG'], model_cfg['FLOW_NET_FLAG'])
@@ -74,7 +74,12 @@ def main(cfg, scene, classes, gpu, save_dir):
 
         if flow_net_type == 'eraft':
             ## for eraft
-            flownet_checkpoint = torch.load(resume_flownet_path, map_location=torch.device('cpu'))['model']
+            if dataset_cfg['TYPE'] == 'dsec':
+                flownet_checkpoint = torch.load(resume_flownet_path, map_location=torch.device('cpu'))['model']
+            elif dataset_cfg['TYPE'] == 'sdsec':
+                flownet_checkpoint = torch.load(resume_flownet_path, map_location=torch.device('cpu'))
+                # 给所有key去掉前缀 'flow_net.'
+                flownet_checkpoint = {k.replace('flow_net.', ''): v for k, v in flownet_checkpoint.items()}
             if 'fnet.conv1.weight' in flownet_checkpoint:
                 # delete weights of the first layer
                 flownet_checkpoint.pop('fnet.conv1.weight')
@@ -182,9 +187,10 @@ def main(cfg, scene, classes, gpu, save_dir):
                 # logits, feature_loss = model(sample, event_voxel)
                 logits = model(sample)
                 # logits, feature_loss = model(sample, event_voxel, rgb_next, flow)
-                loss = loss_fn(logits[1], lbls[0])
-                if len(logits) == 2:
-                    loss += loss_fn(logits[0], lbls[1])
+                loss = loss_fn(logits[-1], lbls[0])
+                # if len(logits) == 2:
+                #     # print("Mid Supervised!")
+                #     loss = loss + loss_fn(logits[0], lbls[1])
                 # loss = loss_fn(logits, lbl) + 0.5*feature_loss + 0.5*consistent_loss
 
             scaler.scale(loss).backward()
@@ -266,6 +272,7 @@ if __name__ == '__main__':
     parser.add_argument('--scene', type=str, default='night')
     parser.add_argument('--input_type', type=str, default='rgbe')
     parser.add_argument('--classes', type=int, default=11)
+    parser.add_argument('--duration', type=int, default=50)
     args = parser.parse_args()
 
     with open(args.cfg) as f:
@@ -283,5 +290,5 @@ if __name__ == '__main__':
     os.makedirs(save_dir, exist_ok=True)
     time_ = time.strftime('%Y%m%d_%H%M%S', time.localtime())
     logger = get_logger(save_dir / f'{args.input_type}_{args.scene}_{args.classes}_{time_}_train.log')
-    main(cfg, args.scene, args.classes, gpu, save_dir)
+    main(cfg, args.scene, args.classes, gpu, save_dir, args.duration)
     cleanup_ddp()

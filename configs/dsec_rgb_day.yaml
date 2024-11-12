@@ -19,12 +19,9 @@ MODEL:
 
 DATASET:
   NAME          : DSEC                                          # dataset name to be trained with (camvid, cityscapes, ade20k)
+  TYPE          : sdsec
   # ROOT          : '/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime/day'                                   # dataset root path
-  # ROOT          : '/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_100/day'                                   # dataset root path
-  ROOT          : '/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_100_N/day'                                   # dataset root path
-  # ROOT          : '/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_50_N/day'                                   # dataset root path
-  DURATION      : 100
-  # DURATION      : 50
+  ROOT          : "/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_${DURATION}_N/day"                                   # dataset root path
   IGNORE_LABEL  : 255
   MODALS        : ['img']
   # MODALS        : ['img', 'depth']
@@ -36,7 +33,7 @@ DATASET:
 
 TRAIN:
   IMAGE_SIZE    : [440, 640]    # training image size in (h, w)
-  BATCH_SIZE    : 3               # batch size used to train
+  BATCH_SIZE    : 2               # batch size used to train
   EPOCHS        : 400             # number of epochs to train
   EVAL_START    : 0             # evaluation interval start
   EVAL_INTERVAL : 1               # evaluation interval during training

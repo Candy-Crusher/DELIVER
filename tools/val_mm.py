@@ -221,7 +221,7 @@ def evaluate_msf(model, dataloader, device, scales, flip):
     return acc, macc, f1, mf1, ious, miou
 
 
-def main(cfg, scene, classes, model_path):
+def main(cfg, scene, classes, model_path, duration):
     device = torch.device(cfg['DEVICE'])
 
     eval_cfg = cfg['EVAL']
@@ -241,10 +241,10 @@ def main(cfg, scene, classes, model_path):
     eval_path = os.path.join(os.path.dirname(model_path), '{}_eval_{}.txt'.format(scene, exp_time))
 
     for case in cases:
-        dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'], 'val', classes, transform, cfg['DATASET']['MODALS'], case, duration=cfg['DATASET']['DURATION'], flow_net_flag=cfg['MODEL']['FLOW_NET_FLAG'])
-        # dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'], 'train', classes, transform, cfg['DATASET']['MODALS'], case, duration=cfg['DATASET']['DURATION'], flow_net_flag=cfg['MODEL']['FLOW_NET_FLAG'])
+        dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'].replace("${DURATION}", str(duration)), 'val', classes, transform, cfg['DATASET']['MODALS'], case, duration=duration, flow_net_flag=cfg['MODEL']['FLOW_NET_FLAG'], dataset_type=cfg['DATASET']['TYPE'])
+        # dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'].replace("${DURATION}", str(duration)), 'train', classes, transform, cfg['DATASET']['MODALS'], case, duration=duration, flow_net_flag=cfg['MODEL']['FLOW_NET_FLAG'], dataset_type=cfg['DATASET']['TYPE'])
         # --- test set
-        # dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'], 'test', transform, cfg['DATASET']['MODALS'], case)
+        # dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'].replace("${DURATION}", str(duration)), 'test', transform, cfg['DATASET']['MODALS'], case)
 
         model = eval(cfg['MODEL']['NAME'])(cfg['MODEL']['BACKBONE'], dataset.n_classes, cfg['DATASET']['MODALS'], cfg['MODEL']['BACKBONE_FLAG'], cfg['MODEL']['FLOW_NET_FLAG'])
         # model = eval(cfg['MODEL']['NAME'])(cfg['MODEL']['BACKBONE'], 11, cfg['DATASET']['MODALS'], cfg['MODEL']['BACKBONE_FLAG'], cfg['MODEL']['FLOW_NET_FLAG'])
@@ -282,6 +282,7 @@ if __name__ == '__main__':
     parser.add_argument('--scene', type=str, default='night')
     parser.add_argument('--model_path', type=str, default='night')
     parser.add_argument('--classes', type=int, default=11)
+    parser.add_argument('--duration', type=int, default=50)
     args = parser.parse_args()
 
     with open(args.cfg) as f:
@@ -290,4 +291,4 @@ if __name__ == '__main__':
     setup_cudnn()
     # gpu = setup_ddp()
     # main(cfg, gpu)
-    main(cfg, args.scene, args.classes, args.model_path)
+    main(cfg, args.scene, args.classes, args.model_path, args.duration)

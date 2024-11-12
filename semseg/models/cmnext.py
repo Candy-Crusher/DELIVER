@@ -58,16 +58,13 @@ class CMNeXt(BaseModel):
 
             # self.fusion_attens = nn.ModuleList(
             #     # Attention(dim=feature_dims[i], num_heads=8, bias=False)
-            #     nn.ModuleList(
-            #         MultiAttentionBlock(
+            #     MultiAttentionBlock(
             #         dim=feature_dims[i],
             #         num_heads=8,
             #         LayerNorm_type='WithBias',
             #         ffn_expansion_factor=2.66,
             #         bias=False,
-            #         is_DA=False)
-            #         for _ in range(2)
-            #     )
+            #         is_DA=True)
             #     for i in range(len(feature_dims))
             # )
 
@@ -140,52 +137,64 @@ class CMNeXt(BaseModel):
                 # iterative all version
 
                 ##################### eraft memory #################
-                mid_supervised = False
-                event_voxel_after = x[3]
+                mid_supervised = True
                 bin = 5
-                ev_t1_t2 = torch.cat([event_voxel_after[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
                 ev_t0_t1 = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
                 ev_before = torch.cat([event_voxel_before[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
                 flow_t0_t1 = self.flow_net(ev_before, ev_t0_t1)[-1]
-                flow_t1_t2 = self.flow_net(ev_t0_t1, ev_t1_t2)[-1]
-                if mid_supervised:
-                    feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow_t0_t1, event_voxel=ev_t0_t1)
-                    y_mid = self.decode_head(feature_after)
-                    y_mid = F.interpolate(y_mid, size=x[0].shape[2:], mode='bilinear', align_corners=False)
-                    feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow_t1_t2, event_voxel=ev_t1_t2)
+                if not mid_supervised:
+                    event_voxel_after = x[3]
+                    ev_t1_t2 = torch.cat([event_voxel_after[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                    flow_t1_t2 = self.flow_net(ev_t0_t1, ev_t1_t2)[-1]
                 else:
-                    # t0 memory
-                    ## decode memory
-                    # y_t0 = self.decode_head(feature_init)
-                    # self.memory_bank = [self.MemoryEncoder[i](feature_after[i], y_t0).detach() for i in range(4)]
-                    # self.memory_bank = self.MemoryEncoder(feature_init[-1], y_t0).detach()
-                    self.memory_bank = [feature_init[-1]]
+                    flow_t1_t2 = torch.zeros(flow_t0_t1.shape).to(x[0].device)
+                    ev_t1_t2 = torch.zeros(ev_t0_t1.shape).to(x[0].device)
+                # t0 memory
+                ## decode memory
+                # y_t0 = self.decode_head(feature_init)
+                # self.memory_bank = [self.MemoryEncoder[i](feature_after[i], y_t0).detach() for i in range(4)]
+                # self.memory_bank = self.MemoryEncoder(feature_init[-1], y_t0).detach()
+                self.memory_bank = [feature_init[-1]]
+                # self.memory_bank = [feature_init]
+                # self.visualize_feature("feature_init", feature_init[-1], save_path="feature_init.png")
 
-                    # t0 → t1
-                    feature_t1 = self.softsplat_net(tenEncone=feature_init, tenForward=flow_t0_t1, event_voxel=ev_t0_t1)
-                    ## memory attention Fw, F0_c=None, Kd=None
-                    feature_t1[-1] = self.fusion_attens(Fw=feature_t1[-1], F0_c=self.memory_bank[0])
-                    # feature_t1[-1] = self.fusion_attens(Fw=feature_t1[-1], F0_c=None, Kd=self.memory_bank)
-                    y_t1 = self.decode_head(feature_t1)
-                    y.append(F.interpolate(y_t1, size=x[0].shape[2:], mode='bilinear', align_corners=False))
-                    # self.memory_bank = [self.MemoryEncoder[i](feature_t1[i], y_t1).detach() for i in range(4)]
-                    # self.memory_bank = self.MemoryEncoder(feature_t1[-1], y_t1).detach()
-                    # self.memory_bank = feature_t1[-1]
-                    self.memory_bank.append(feature_t1[-1])
+                # t0 → t1
+                feature_t1 = self.softsplat_net(tenEncone=feature_init, tenForward=flow_t0_t1, event_voxel=ev_t0_t1)
+                # self.visualize_feature("feature_t1", feature_t1[-1], save_path="feature_t1.png")
+                ## memory attention Fw, F0_c=None, Kd=None
+                feature_t1[-1] = self.fusion_attens(Fw=feature_t1[-1], F0_c=self.memory_bank[0])
+                # feature_t1[-1] = self.fusion_attens(Fw=feature_t1[-1], F0_c=None, Kd=self.memory_bank[0])
+                # feature_t1 = [self.fusion_attens[i](Fw=feature_t1[i], F0_c=None, Kd=self.memory_bank[0][i]) for i in range(4)]
+                # self.visualize_feature("feature_t1_atten", feature_t1[-1], save_path="feature_t1_atten.png")
+                y_t1 = self.decode_head(feature_t1)
+                # self.visualize_feature("y_t1", y_t1, save_path="y_t1.png")
+                y.append(F.interpolate(y_t1, size=x[0].shape[2:], mode='bilinear', align_corners=False))
+                # if mid_supervised:
+                    # return y
+                # self.memory_bank = [self.MemoryEncoder[i](feature_t1[i], y_t1).detach() for i in range(4)]
+                # self.memory_bank = self.MemoryEncoder(feature_t1[-1], y_t1).detach()
+                # self.memory_bank = feature_t1[-1]
+                self.memory_bank.append(feature_t1[-1])
+                # self.memory_bank.append(feature_t1)
 
-                    # t1 → t2
-                    feature_t2 = self.softsplat_net(tenEncone=feature_t1, tenForward=flow_t1_t2, event_voxel=ev_t1_t2)
-                    ## memory attention
-                    # feature_t2[-1] = self.fusion_attens(Fw=feature_t2[-1], F0_c=None, Kd=self.memory_bank)
-                    feature_t2[-1] = self.fusion_attens(Fw=feature_t2[-1], F0_c=self.memory_bank[0], Kd=self.memory_bank[1])
-                    y_t2 = self.decode_head(feature_t2)
-                    y.append(F.interpolate(y_t2, size=x[0].shape[2:], mode='bilinear', align_corners=False))
-                    return y
+                # t1 → t2
+                feature_t2 = self.softsplat_net(tenEncone=feature_t1, tenForward=flow_t1_t2, event_voxel=ev_t1_t2)
+                # self.visualize_feature("feature_t2", feature_t2[-1], save_path="feature_t2.png")
+                ## memory attention
+                # feature_t2[-1] = self.fusion_attens(Fw=feature_t2[-1], F0_c=None, Kd=self.memory_bank)
+                feature_t2[-1] = self.fusion_attens(Fw=feature_t2[-1], F0_c=self.memory_bank[0], Kd=self.memory_bank[1])
+                # feature_t2 = [self.fusion_attens[i](Fw=feature_t2[i], F0_c=self.memory_bank[0][i], Kd=self.memory_bank[1][i]) for i in range(4)]
+                # self.visualize_feature("feature_t2_atten", feature_t2[-1], save_path="feature_t2_atten.png")
+                y_t2 = self.decode_head(feature_t2)
+                # self.visualize_feature("y_t2", y_t2, save_path="y_t2.png")
+                y.append(F.interpolate(y_t2, size=x[0].shape[2:], mode='bilinear', align_corners=False))
+                # exit(0)
+                return y
 
-                    # ev = torch.cat([ev_t0_t1, ev_t1_t2], dim=1)
-                    # bin = 2
-                    # ev = torch.cat([ev[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(4)], dim=1)
-                    # feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow_t0_t1+flow_t1_t2, event_voxel=ev_t0_t1)
+                # ev = torch.cat([ev_t0_t1, ev_t1_t2], dim=1)
+                # bin = 2
+                # ev = torch.cat([ev[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(4)], dim=1)
+                # feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow_t0_t1+flow_t1_t2, event_voxel=ev_t0_t1)
                 ##########################################
 
                 # ##################### for eraft ################
@@ -310,6 +319,30 @@ class CMNeXt(BaseModel):
         # self.visualize_all([x[0]]+feature_before, feature_after, [rgb_next]+feature_next, interFlow)
         # exit(0)  
 
+    def visualize_feature(self, name, feature, save_path="feature.png"):
+        """
+        可视化特征图并保存为图像文件。
+
+        参数：
+            name (str): 特征名称，用于标题。
+            feature (Tensor): 要可视化的特征张量。
+            save_path (str): 保存图像的路径。
+        """
+        # 将特征从 (C, H, W) 转换为 (H, W, C)
+        feature = feature[0]
+        feature_np = feature.detach().cpu().numpy()
+        # 选择第一个通道进行可视化
+        if feature_np.shape[0] > 1:
+            feature_to_plot = np.mean(feature_np, axis=0)
+        else:
+            feature_to_plot = feature_np[0]
+
+        plt.figure(figsize=(6,6))
+        plt.imshow(feature_to_plot, cmap='viridis')
+        plt.title(name)
+        plt.axis('off')
+        plt.savefig(save_path, dpi=150)
+        plt.close()
 
     def visualize_features_all(self, features):
         total_features = sum(f.shape[1] for f in features)

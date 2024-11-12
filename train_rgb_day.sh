@@ -1,18 +1,19 @@
 # export PYTHONPATH="~/work/adap_v/DELIVER"
 export PYTHONPATH="~/work/adap_v/DELIVER:$(pwd)"
 
-export CUDA_VISIBLE_DEVICES=0,1,2,3
+# export CUDA_VISIBLE_DEVICES=0,1,2,3
 # export CUDA_VISIBLE_DEVICES=4,5,6,7
-# export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5
 dataset='dsec'
 train_dataset='day'
 input_type='rgb'
-NCCL_P2P_DISABLE=1 torchrun --standalone --nproc_per_node=4\
+NCCL_P2P_DISABLE=1 torchrun --standalone --nproc_per_node=6\
   tools/train_mm.py \
   --cfg configs/${dataset}_${input_type}_${train_dataset}.yaml \
   --input_type ${input_type} \
   --scene ${train_dataset} \
-  --classes 11
+  --classes 11 \
+  --duration 50
   # --cfg configs/dsec_rgbe.yaml
   # --cfg configs/deliver_rgbdel.yaml
 

@@ -172,7 +172,7 @@ class DSEC(Dataset):
 
     }
 
-    def __init__(self, root: str = 'data/DSEC', split: str = 'train', n_classes: int = 11, transform = None, modals = ['img', 'event'], case = None, duration: int=0, flow_net_flag: bool=False) -> None:
+    def __init__(self, root: str = 'data/DSEC', split: str = 'train', n_classes: int = 11, transform = None, modals = ['img', 'event'], case = None, duration: int=0, flow_net_flag: bool=False, dataset_type: str=None) -> None:
         super().__init__()
         self.root = root
         self.split = split
@@ -185,10 +185,10 @@ class DSEC(Dataset):
 
         self.duration = duration
         self.time_window = duration//50
-        dataset = 'dsec'
-        if dataset == 'sdsec':
+        dataset_type = 'dsec'
+        if dataset_type == 'sdsec':
             self.index_window = self.duration//10
-        elif dataset == 'dsec':
+        elif dataset_type == 'dsec':
             self.index_window = self.duration//50
     
         self.flow_net_flag = flow_net_flag
