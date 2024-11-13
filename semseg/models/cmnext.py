@@ -163,7 +163,7 @@ class CMNeXt(BaseModel):
                     if self.dataset_type == 'sdsec':
                         assert event_voxel_before.shape[1] == 40
                         assert  event_voxel.shape[1] == 40
-                        tau = 0
+                        tau = 50
                         event_voxel_before = event_voxel_before[:, -20:]    # TODO can be set to -tau: ?
                         index = tau//5*4    # interframe [0, 4, 8, 12, 16, 20, 24, 28, 32, 26, 40] 0ms 5ms 10ms 15ms 20ms 25ms 30ms 35ms 40ms 45ms 50ms
                         bin = tau//5

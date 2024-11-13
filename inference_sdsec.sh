@@ -7,7 +7,9 @@ python tools/val_mm.py \
     --cfg configs/${dataset}_${input_type}_${eval_dataset}.yaml \
     --scene ${dataset}_${input_type}_${eval_dataset} \
     --classes 11 \
-    --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch174_63.54.pth
+    --duration 0 \
+    --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch258_63.93.pth
+    # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch174_63.54.pth
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch45_62.23.pth
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch220_73.99.pth
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch24_60.72.pth
