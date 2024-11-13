@@ -163,7 +163,7 @@ class CMNeXt(BaseModel):
                     if self.dataset_type == 'sdsec':
                         assert event_voxel_before.shape[1] == 40
                         assert  event_voxel.shape[1] == 40
-                        tau = 40
+                        tau = 0
                         event_voxel_before = event_voxel_before[:, -20:]    # TODO can be set to -tau: ?
                         index = tau//5*4    # interframe [0, 4, 8, 12, 16, 20, 24, 28, 32, 26, 40] 0ms 5ms 10ms 15ms 20ms 25ms 30ms 35ms 40ms 45ms 50ms
                         bin = tau//5
@@ -177,11 +177,17 @@ class CMNeXt(BaseModel):
                         bin = tau//10
 
                     # event_voxel_before = event_voxel_before[:, -index:]    # TODO can be set to -index: ?
-                    event_voxel = event_voxel[:, :index]
-                    ev_t0_t1 = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(4)], dim=1)
-                    bin = 5
-                    ev_before = torch.cat([event_voxel_before[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-                    flow_t0_t1 = self.flow_net(ev_before, ev_t0_t1)[-1]
+                    if index > 0:
+                        event_voxel = event_voxel[:, :index]
+                        ev_t0_t1 = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(4)], dim=1)
+                        bin = 5
+                        ev_before = torch.cat([event_voxel_before[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                        flow_t0_t1 = self.flow_net(ev_before, ev_t0_t1)[-1]
+                    else:
+                        B, _, H, W = event_voxel.shape
+                        ev_t0_t1 = torch.zeros(B, 4, H, W).to(x[0].device)
+                        flow_t0_t1 = torch.zeros(B, 2, H, W).to(x[0].device)
+
 
                     ev_t1_t2 = torch.zeros(ev_t0_t1.shape).to(x[0].device)
                     flow_t1_t2 = torch.zeros(flow_t0_t1.shape).to(x[0].device)
