@@ -163,10 +163,10 @@ class CMNeXt(BaseModel):
                     if self.dataset_type == 'sdsec':
                         assert event_voxel_before.shape[1] == 40
                         assert  event_voxel.shape[1] == 40
-                        tau = 50
-                        event_voxel_before = event_voxel_before[:, -20:]    # TODO can be set to -tau: ?
+                        tau = 0
                         index = tau//5*4    # interframe [0, 4, 8, 12, 16, 20, 24, 28, 32, 26, 40] 0ms 5ms 10ms 15ms 20ms 25ms 30ms 35ms 40ms 45ms 50ms
                         bin = tau//5
+                        # event_voxel_before = event_voxel_before[:, -20:]    # TODO can be set to -tau: ?
 
                     elif self.dataset_type == 'dsec':
                         # 输入是ev_before -50 0 bin20 和 event_voxel 0 50 bin 20
@@ -178,10 +178,12 @@ class CMNeXt(BaseModel):
 
                     # event_voxel_before = event_voxel_before[:, -index:]    # TODO can be set to -index: ?
                     if index > 0:
+                        event_voxel_before = event_voxel_before[:, -index:]    # TODO can be set to -tau: ?
                         event_voxel = event_voxel[:, :index]
                         ev_t0_t1 = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(4)], dim=1)
-                        bin = 5
-                        ev_before = torch.cat([event_voxel_before[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                        # bin = 5
+                        # ev_before = torch.cat([event_voxel_before[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                        ev_before = torch.cat([event_voxel_before[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(4)], dim=1)
                         flow_t0_t1 = self.flow_net(ev_before, ev_t0_t1)[-1]
                     else:
                         B, _, H, W = event_voxel.shape
