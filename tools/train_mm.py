@@ -9,7 +9,7 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from pathlib import Path
 from torch.utils.tensorboard import SummaryWriter
-from torch.cuda.amp import GradScaler, autocast
+from torch.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DistributedSampler, RandomSampler
 from torch import distributed as dist
@@ -53,7 +53,7 @@ def main(cfg, scene, classes, gpu, save_dir, duration):
     # valset = eval(dataset_cfg['NAME'])(dataset_cfg['ROOT'].replace("${DURATION}", str(duration)), 'train', classes, valtransform, dataset_cfg['MODALS'], duration=duration, flow_net_flag=model_cfg['FLOW_NET_FLAG'], dataset_type=dataset_cfg['TYPE'])
     class_names = trainset.SEGMENTATION_CONFIGS[classes]["CLASSES"]
 
-    model = eval(model_cfg['NAME'])(model_cfg['BACKBONE'], trainset.n_classes, dataset_cfg['MODALS'], model_cfg['BACKBONE_FLAG'], model_cfg['FLOW_NET_FLAG'])
+    model = eval(model_cfg['NAME'])(model_cfg['BACKBONE'], trainset.n_classes, dataset_cfg['MODALS'], model_cfg['BACKBONE_FLAG'], model_cfg['FLOW_NET_FLAG'], dataset_type=dataset_cfg['TYPE'], anytime_flag=False)
     resume_checkpoint = None
     if os.path.isfile(resume_path):
         resume_checkpoint = torch.load(resume_path, map_location=torch.device('cpu'))
@@ -68,16 +68,22 @@ def main(cfg, scene, classes, gpu, save_dir, duration):
     
     if model_cfg['FLOW_NET_FLAG']:
     # if os.path.isfile(resume_flownet_path):
-        print('Loading flownet model...')
+        if (train_cfg['DDP'] and torch.distributed.get_rank() == 0) or (not train_cfg['DDP']):
+            print('Loading flownet model...')
         flow_net_type = model_cfg['FLOW_NET']
         resume_flownet_path = model_cfg['RESUME_FLOWNET']
 
         if flow_net_type == 'eraft':
             ## for eraft
             if dataset_cfg['TYPE'] == 'dsec':
-                flownet_checkpoint = torch.load(resume_flownet_path, map_location=torch.device('cpu'))['model']
+                flownet_checkpoint = torch.load(resume_flownet_path, map_location=torch.device('cpu'), weights_only=True)['model']
             elif dataset_cfg['TYPE'] == 'sdsec':
-                flownet_checkpoint = torch.load(resume_flownet_path, map_location=torch.device('cpu'))
+                # flownet_checkpoint = torch.load(resume_flownet_path, map_location=torch.device('cpu'))
+                flownet_checkpoint = torch.load(resume_flownet_path, map_location=torch.device('cpu'), weights_only=True)
+                # 筛选出以 'flownet' 为前缀的键
+                flownet_checkpoint = {
+                    key: value for key, value in flownet_checkpoint.items() if key.startswith('flow_net')
+                }
                 # 给所有key去掉前缀 'flow_net.'
                 flownet_checkpoint = {k.replace('flow_net.', ''): v for k, v in flownet_checkpoint.items()}
             if 'fnet.conv1.weight' in flownet_checkpoint:
@@ -108,9 +114,9 @@ def main(cfg, scene, classes, gpu, save_dir, duration):
             #     flownet_checkpoint.pop('cnet.conv1.weight')
             #     flownet_checkpoint.pop('cnet.conv1.bias')
 
-        msg = model.flow_net.load_state_dict(flownet_checkpoint, strict=False)
+        flownet_msg = model.flow_net.load_state_dict(flownet_checkpoint, strict=False)
         # print("flownet_checkpoint msg: ", msg)
-        logger.info(msg)
+        # logger.info(msg)
 
     model = model.to(device)
     
@@ -135,7 +141,8 @@ def main(cfg, scene, classes, gpu, save_dir, duration):
     
     # NOTE
     if not model_cfg['BACKBONE_FLAG']:
-        print('Freezing backbone...')
+        if (train_cfg['DDP'] and torch.distributed.get_rank() == 0) or (not train_cfg['DDP']):
+            print('Freezing backbone...')
         # # 冻结除 flow_net 和 softsplat_net 之外的所有层
         for name, param in model.named_parameters():
             param.requires_grad = True
@@ -149,8 +156,8 @@ def main(cfg, scene, classes, gpu, save_dir, duration):
         #     if 'decode_head' in name:
         #         param.requires_grad = True
         # 检查哪些参数被冻结了
-        for name, param in model.named_parameters():
-            print(f"{name}: requires_grad={param.requires_grad}")
+        # for name, param in model.named_parameters():
+        #     print(f"{name}: requires_grad={param.requires_grad}")
         # end
     trainloader = DataLoader(trainset, batch_size=train_cfg['BATCH_SIZE'], num_workers=num_workers, drop_last=True, pin_memory=True, sampler=sampler, worker_init_fn=lambda worker_id: np.random.seed(3407 + worker_id))
     # trainloader = DataLoader(trainset, batch_size=train_cfg['BATCH_SIZE'], num_workers=0, drop_last=True, pin_memory=True, sampler=sampler, worker_init_fn=lambda worker_id: np.random.seed(3407 + worker_id))
@@ -165,7 +172,8 @@ def main(cfg, scene, classes, gpu, save_dir, duration):
         logger.info('================== model complexity =====================')
         # cal_flops(model, dataset_cfg['MODALS'], logger)
         logger.info('================== model structure =====================')
-        logger.info(model)
+        logger.info(flownet_msg)
+        # logger.info(model)
         logger.info('================== training config =====================')
         logger.info(cfg)
 
@@ -186,7 +194,7 @@ def main(cfg, scene, classes, gpu, save_dir, duration):
             # flow = sample[3].to(device)
             # sample = [sample[0]]
             
-            with autocast(enabled=train_cfg['AMP']):
+            with autocast('cuda', enabled=train_cfg['AMP']):
                 # logits = model(sample, event_voxel, rgb_next, flow)
                 # logits, feature_loss = model(sample, event_voxel)
                 logits = model(sample)

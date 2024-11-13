@@ -185,15 +185,18 @@ class DSEC(Dataset):
 
         self.duration = duration
         self.time_window = duration//50
-        dataset_type = 'dsec'
         if dataset_type == 'sdsec':
+            print(f"Loading SDSEC dataset with {duration}ms duration.")
             self.index_window = self.duration//10
+            self.bin = 40
         elif dataset_type == 'dsec':
+            print(f"Loading DSEC dataset with {duration}ms duration.")
             self.index_window = self.duration//50
+            self.bin = 20
     
         self.flow_net_flag = flow_net_flag
+        self.dataset_type = dataset_type
         self.iterframe_test = False
-        print(f"Loading DSEC dataset with {duration}ms duration.")
         # self.seg_gt_dirname = f'/gtFine_t1_interpolation'
         # self.seg_gt_dirname = f'/gtFine_t1'
         self.seg_gt_dirname = f'/gtFine_t{self.time_window}'
@@ -213,9 +216,8 @@ class DSEC(Dataset):
         sample = {}
         lbl_path = str(self.files[index])
         if self.time_window != 0:
-            bin = 20
             if self.iterframe_test:
-                if bin==20:
+                if self.bin==20:
                     start_t = 1
                     rgb_path = get_new_name(lbl_path, idx_diff=start_t-self.index_window).replace(self.seg_gt_dirname, f'/leftImg8bit_t{start_t}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
                     ### event ###
@@ -238,12 +240,12 @@ class DSEC(Dataset):
             else:
                 rgb_path = get_new_name(lbl_path, idx_diff=0-self.index_window).replace(self.seg_gt_dirname, f'/leftImg8bit_t0').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
                 ### event ###
-                # event_path = get_new_name(lbl_path, idx_diff=0-self.index_window).replace(self.seg_gt_dirname, f'/event_t0_t{self.time_window}/event_{bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
-                # event_path_before = get_new_name(lbl_path, idx_diff=0-2*self.index_window).replace(self.seg_gt_dirname, f'/event_t-{self.time_window}_t0/event_{bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
-                event_path = get_new_name(lbl_path, idx_diff=0-self.index_window).replace(self.seg_gt_dirname, f'/event_t0_t1/event_{bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
-                event_path_before = get_new_name(lbl_path, idx_diff=0-self.index_window-self.index_window//self.time_window).replace(self.seg_gt_dirname, f'/event_t-1_t0/event_{bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
+                # event_path = get_new_name(lbl_path, idx_diff=0-self.index_window).replace(self.seg_gt_dirname, f'/event_t0_t{self.time_window}/event_{self.bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
+                # event_path_before = get_new_name(lbl_path, idx_diff=0-2*self.index_window).replace(self.seg_gt_dirname, f'/event_t-{self.time_window}_t0/event_{self.bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
+                event_path = get_new_name(lbl_path, idx_diff=0-self.index_window).replace(self.seg_gt_dirname, f'/event_t0_t1/event_{self.bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
+                event_path_before = get_new_name(lbl_path, idx_diff=0-self.index_window-self.index_window//self.time_window).replace(self.seg_gt_dirname, f'/event_t-1_t0/event_{self.bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
                 if self.index_window == 2:
-                    event_path_after = get_new_name(lbl_path, idx_diff=0-self.index_window+self.index_window//self.time_window).replace(self.seg_gt_dirname, f'/event_t1_t2/event_{bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
+                    event_path_after = get_new_name(lbl_path, idx_diff=0-self.index_window+self.index_window//self.time_window).replace(self.seg_gt_dirname, f'/event_t1_t2/event_{self.bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
                     event_voxel_after = np.load(event_path_after, allow_pickle=True)
                     sample['event_after'] = torch.from_numpy(event_voxel_after[:, :440])
                     lbl_path_after = get_new_name(lbl_path, idx_diff=0-self.index_window+self.index_window//self.time_window).replace(self.seg_gt_dirname, f'/gtFine_t1')
@@ -287,8 +289,6 @@ class DSEC(Dataset):
         # # dict_keys(['img', 'img_next', 'mask', 'mask_cur', 'event', 'flow', 'flow_inverse'])
         # seq_name = Path(sample_path).parts[-2]
         # seq_idx = Path(sample_path).parts[-1].split('_')[0]
-        # # bin = 5
-        # # sample['event'] = torch.cat([sample['event'][bin*i:bin*(i+1)].mean(0).unsqueeze(0) for i in range(20//bin)], dim=0)
 
         if self.transform:
             sample = self.transform(sample)
@@ -360,7 +360,8 @@ class ExtendedDSEC(DSEC):
             modals=original_dataset.modals,
             case=original_dataset.case,
             duration=original_dataset.duration,
-            flow_net_flag=original_dataset.flow_net_flag
+            flow_net_flag=original_dataset.flow_net_flag,
+            dataset_type=original_dataset.dataset_type
         )
         
         # 保存原始数据集的长度和目标长度

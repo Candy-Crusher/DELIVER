@@ -1,5 +1,5 @@
 export PYTHONPATH="~/work/adap_v/DELIVER:$(pwd)"
-export CUDA_VISIBLE_DEVICES=4
+export CUDA_VISIBLE_DEVICES=6,7
 dataset='sdsec'
 eval_dataset='day'
 input_type='rgb'
@@ -7,7 +7,8 @@ python tools/val_mm.py \
     --cfg configs/${dataset}_${input_type}_${eval_dataset}.yaml \
     --scene ${dataset}_${input_type}_${eval_dataset} \
     --classes 11 \
-    --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch45_62.23.pth
+    --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch174_63.54.pth
+    # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch45_62.23.pth
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch220_73.99.pth
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch24_60.72.pth
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch173_57.27.pth

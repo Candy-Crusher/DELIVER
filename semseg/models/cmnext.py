@@ -23,8 +23,8 @@ import matplotlib.pyplot as plt
 import moviepy.editor
     
 class CMNeXt(BaseModel):
-    def __init__(self, backbone: str = 'CMNeXt-B0', num_classes: int = 25, modals: list = ['img', 'depth', 'event', 'lidar'], backbone_flag: bool=False, flow_net_flag: bool=False) -> None:
-        super().__init__(backbone, num_classes, modals, with_events=False,backbone_flag=backbone_flag,  flow_net_flag=flow_net_flag)
+    def __init__(self, backbone: str = 'CMNeXt-B0', num_classes: int = 25, modals: list = ['img', 'depth', 'event', 'lidar'], backbone_flag: bool=False, flow_net_flag: bool=False, dataset_type: str=None, anytime_flag: bool=False) -> None:
+        super().__init__(backbone, num_classes, modals, with_events=False,backbone_flag=backbone_flag,  flow_net_flag=flow_net_flag, dataset_type=dataset_type, anytime_flag=anytime_flag)
         self.decode_head = SegFormerHead(self.backbone.channels, 256 if 'B0' in backbone or 'B1' in backbone else 512, num_classes)
         if self.flow_net_flag:
             # self.flow_net = flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=3)
@@ -137,18 +137,54 @@ class CMNeXt(BaseModel):
                 # iterative all version
 
                 ##################### eraft memory #################
-                mid_supervised = False
-                bin = 5
-                ev_t0_t1 = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-                ev_before = torch.cat([event_voxel_before[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-                flow_t0_t1 = self.flow_net(ev_before, ev_t0_t1)[-1]
-                if not mid_supervised:
-                    event_voxel_after = x[3]
+                # anytime_flag = True
+                # dataset_type = 'dsec'
+                if not self.anytime_flag:
+                    if self.dataset_type == 'sdsec':
+                        assert event_voxel_before.shape[1] == 40
+                        assert  event_voxel.shape[1] == 40
+                        event_voxel_before = event_voxel_before[:, 20:]
+                        # dt = 25
+                        # tau = -20+dt//5*4    # interframe [-20, -16, -12, -8, -4, 0, 4, 8, 12, 16, 20] 0ms 5ms 10ms 15ms 20ms 25ms 30ms 35ms 40ms 45ms 50ms
+                        event_voxel_after = event_voxel[:, 20:]
+                        event_voxel = event_voxel[:, :20]
+                    elif self.dataset_type == 'dsec':
+                        event_voxel_after = x[3]
+
+                    bin = 5
+                    ev_t0_t1 = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                    ev_before = torch.cat([event_voxel_before[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                    flow_t0_t1 = self.flow_net(ev_before, ev_t0_t1)[-1]
+
                     ev_t1_t2 = torch.cat([event_voxel_after[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
                     flow_t1_t2 = self.flow_net(ev_t0_t1, ev_t1_t2)[-1]
-                else:
-                    flow_t1_t2 = torch.zeros(flow_t0_t1.shape).to(x[0].device)
+
+                else:   # anytime tau
+                    if self.dataset_type == 'sdsec':
+                        assert event_voxel_before.shape[1] == 40
+                        assert  event_voxel.shape[1] == 40
+                        tau = 40
+                        event_voxel_before = event_voxel_before[:, -20:]    # TODO can be set to -tau: ?
+                        index = tau//5*4    # interframe [0, 4, 8, 12, 16, 20, 24, 28, 32, 26, 40] 0ms 5ms 10ms 15ms 20ms 25ms 30ms 35ms 40ms 45ms 50ms
+                        bin = tau//5
+
+                    elif self.dataset_type == 'dsec':
+                        # 输入是ev_before -50 0 bin20 和 event_voxel 0 50 bin 20
+                        assert event_voxel_before.shape[1] == 20
+                        assert  event_voxel.shape[1] == 20
+                        tau = 50
+                        index = tau//10*4    # interframe [0, 4, 8, 12, 16, 20] 0ms 10ms 20ms 30ms 40ms 50ms
+                        bin = tau//10
+
+                    # event_voxel_before = event_voxel_before[:, -index:]    # TODO can be set to -index: ?
+                    event_voxel = event_voxel[:, :index]
+                    ev_t0_t1 = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(4)], dim=1)
+                    bin = 5
+                    ev_before = torch.cat([event_voxel_before[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                    flow_t0_t1 = self.flow_net(ev_before, ev_t0_t1)[-1]
+
                     ev_t1_t2 = torch.zeros(ev_t0_t1.shape).to(x[0].device)
+                    flow_t1_t2 = torch.zeros(flow_t0_t1.shape).to(x[0].device)
                 # t0 memory
                 ## decode memory
                 # y_t0 = self.decode_head(feature_init)
@@ -169,7 +205,7 @@ class CMNeXt(BaseModel):
                 y_t1 = self.decode_head(feature_t1)
                 # self.visualize_feature("y_t1", y_t1, save_path="y_t1.png")
                 y.append(F.interpolate(y_t1, size=x[0].shape[2:], mode='bilinear', align_corners=False))
-                # if mid_supervised:
+                # if anytime_flag:
                     # return y
                 # self.memory_bank = [self.MemoryEncoder[i](feature_t1[i], y_t1).detach() for i in range(4)]
                 # self.memory_bank = self.MemoryEncoder(feature_t1[-1], y_t1).detach()
@@ -234,14 +270,14 @@ class CMNeXt(BaseModel):
                 #     y.append(F.interpolate(y_mid, size=x[0].shape[2:], mode='bilinear', align_corners=False))
                 # return y
 
-                # mid_supervised = False
+                # anytime_flag = False
                 # event_voxel_after = x[3]# bin = 5
                 # ev_t1_t2 = torch.cat([event_voxel_after[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
                 # ev_t0_t1 = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
                 # ev_before = torch.cat([event_voxel_before[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
                 # flow_t0_t1 = self.flow_net(ev_before, ev_t0_t1)[-1]
                 # flow_t1_t2 = self.flow_net(ev_t0_t1, ev_t1_t2)[-1]
-                # if mid_supervised:
+                # if anytime_flag:
                 #     feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow_t0_t1, event_voxel=ev_t0_t1)
                 #     y_mid = self.decode_head(feature_after)
                 #     y.append(F.interpolate(y_mid, size=x[0].shape[2:], mode='bilinear', align_corners=False))
@@ -423,7 +459,7 @@ class CMNeXt(BaseModel):
             if self.backbone.num_modals > 0:
                 load_dualpath_model(self.backbone, pretrained)
             else:
-                checkpoint = torch.load(pretrained, map_location='cpu')
+                checkpoint = torch.load(pretrained, map_location='cpu', weights_only=True)
                 if 'state_dict' in checkpoint.keys():
                     checkpoint = checkpoint['state_dict']
                 if 'model' in checkpoint.keys():
@@ -433,7 +469,7 @@ class CMNeXt(BaseModel):
                     msg = self.backbone.load_state_dict(checkpoint, strict=False)
                 else:
                     msg = self.load_state_dict(checkpoint, strict=False)
-                print("init_pretrained message: ", msg)
+                # print("init_pretrained message: ", msg)
     
     def viz2(self, flow, x, rgb_next):
         # 可视化光流

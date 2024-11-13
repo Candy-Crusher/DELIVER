@@ -358,7 +358,8 @@ class softsplat_func(torch.autograd.Function):
     # end
 
     @staticmethod
-    @torch.cuda.amp.custom_bwd
+    # @torch.cuda.amp.custom_bwd
+    @torch.amp.custom_bwd(device_type='cuda')
     def backward(self, tenOutgrad):
         tenIn, tenFlow = self.saved_tensors
 

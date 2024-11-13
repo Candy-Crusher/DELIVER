@@ -11,7 +11,9 @@ from argparse import Namespace
 # from utils.image_utils import ImagePadder
 
 try:
-    autocast = torch.cuda.amp.autocast
+    # autocast = torch.cuda.amp.autocast
+    autocast = torch.amp.autocast
+    
 except:
     # dummy autocast for PyTorch < 1.6
     class autocast:
@@ -95,7 +97,7 @@ class ERAFT(nn.Module):
         cdim = self.context_dim
 
         # run the feature network
-        with autocast(enabled=self.args.mixed_precision):
+        with autocast('cuda', enabled=self.args.mixed_precision):
             fmap1, fmap2 = self.fnet([event1, event2])
         
         fmap1 = fmap1.float()
@@ -104,7 +106,7 @@ class ERAFT(nn.Module):
         corr_fn = CorrBlock(fmap1, fmap2, radius=self.args.corr_radius)
 
         # run the context network
-        with autocast(enabled=self.args.mixed_precision):
+        with autocast('cuda', enabled=self.args.mixed_precision):
             cnet = self.cnet(event2)
             net, inp = torch.split(cnet, [hdim, cdim], dim=1)
             net = torch.tanh(net)
@@ -122,7 +124,7 @@ class ERAFT(nn.Module):
             corr = corr_fn(coords1) # index correlation volume
 
             flow = coords1 - coords0
-            with autocast(enabled=self.args.mixed_precision):
+            with autocast('cuda', enabled=self.args.mixed_precision):
                 net, up_mask, delta_flow = self.update_block(net, inp, corr, flow)
 
             # F(t+1) = F(t) + \Delta(t)
