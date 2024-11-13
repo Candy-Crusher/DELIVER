@@ -200,7 +200,7 @@ class DSEC(Dataset):
         # self.seg_gt_dirname = f'/gtFine_t1_interpolation'
         # self.seg_gt_dirname = f'/gtFine_t1'
         # self.seg_gt_dirname = f'/gtFine_t{self.time_window}'
-        dt = 5
+        dt = 1
         self.seg_gt_dirname = f'/gtFine_t{self.time_window}_dt{dt}'
         print(f"Loading {self.seg_gt_dirname} segmentation ground truth.")
         # self.files = sorted(glob.glob(os.path.join(*[root, 'leftImg8bit', split, '*', '*.png'])))
@@ -265,7 +265,8 @@ class DSEC(Dataset):
                     sample['flow'] = torch.from_numpy(flow[:, :440])
         else:
             # rgb_path = lbl_path.replace(self.seg_gt_dirname, '/leftImg8bit_t0').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
-            rgb_path = lbl_path.replace(self.seg_gt_dirname, '/leftImg8bit_t0_dt5').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
+            # rgb_path = lbl_path.replace(self.seg_gt_dirname, '/leftImg8bit_t0_dt5').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
+            rgb_path = get_new_name(lbl_path, idx_diff=-1).replace(self.seg_gt_dirname, '/leftImg8bit_t0').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
             # rgb_path = lbl_path.replace(self.seg_gt_dirname, '/leftImg8bit_t1_interpolation').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
             # rgb_path = get_new_name(lbl_path, idx_diff=-1).replace(self.seg_gt_dirname, '/leftImg8bit_t0').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
 
