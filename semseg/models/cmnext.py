@@ -122,17 +122,17 @@ class CMNeXt(BaseModel):
                 #     #     for blk in self.fusion_attens[i]:
                 #     #         feature_after[i] = blk(feature_after[i], feature_init[i])
 
-                # # one time all version
-                # bin = 5
-                # ev2 = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-                # ev1 = torch.cat([event_voxel_before[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
-                # flow = self.flow_net(ev1, ev2)[-1]
-                # feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow, event_voxel=ev2)
-                # # x = self.softsplat_net(tenEncone=[x[0]], tenForward=flow, event_voxel=ev2)
-                # # feature_after = self.backbone(x)
-                # y_mid = self.decode_head(feature_after)
-                # y.append(F.interpolate(y_mid, size=x[0].shape[2:], mode='bilinear', align_corners=False))
-                # return y
+                # one time all version
+                bin = 5
+                ev2 = torch.cat([event_voxel[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                ev1 = torch.cat([event_voxel_before[:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)
+                flow = self.flow_net(ev1, ev2)[-1]
+                feature_after = self.softsplat_net(tenEncone=feature_after, tenForward=flow, event_voxel=ev2)
+                # x = self.softsplat_net(tenEncone=[x[0]], tenForward=flow, event_voxel=ev2)
+                # feature_after = self.backbone(x)
+                y_mid = self.decode_head(feature_after)
+                y.append(F.interpolate(y_mid, size=x[0].shape[2:], mode='bilinear', align_corners=False))
+                return y
 
                 # iterative all version
 
