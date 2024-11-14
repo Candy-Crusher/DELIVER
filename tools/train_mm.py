@@ -174,7 +174,7 @@ def main(cfg, scene, classes, gpu, save_dir, duration):
         logger.info('================== model complexity =====================')
         # cal_flops(model, dataset_cfg['MODALS'], logger)
         logger.info('================== model structure =====================')
-        logger.info(flownet_msg)
+        # logger.info(flownet_msg)
         # logger.info(model)
         logger.info('================== training config =====================')
         logger.info(cfg)
