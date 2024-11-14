@@ -7,10 +7,12 @@ MODEL:
   BACKBONE_FLAG : False
   PRETRAINED_BACKBONE    : 'checkpoints/pretrained/segformer/mit_b2.pth'     # backbone model's weight 
   # PRETRAINED        : '/home/xiaoshan/work/adap_v/DELIVER/output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch356_73.55.pth'     # backbone model's weight 
-  PRETRAINED    : 'output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch220_73.99.pth'
+  PRETRAINED      : 'output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch258_63.93.pth'
+  # PRETRAINED    : 'output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch220_73.99.pth'
   FLOW_NET_FLAG : True
   FLOW_NET      : 'eraft'
-  RESUME_FLOWNET: 'dsec.tar'
+  RESUME_FLOWNET: 'model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch106_0.41733222244595924.pth'
+  # RESUME_FLOWNET: 'dsec.tar'
   # FLOW_NET      : 'bflow'
   # RESUME_FLOWNET: 'E_LU4_BD2.ckpt'
   # RESUME_FLOWNET: 'flow_network.pth'
@@ -22,7 +24,8 @@ DATASET:
   TYPE          : dsec
   # ROOT          : '/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime/day'                                   # dataset root path
   # ROOT          : "/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_${DURATION}_N/day"                                   # dataset root path
-  ROOT          : "/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_100/viz_05a/day"
+  # ROOT          : "/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_100/viz_05a/day"
+  ROOT          : "/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_100/synthesis_N11_45_100"
   IGNORE_LABEL  : 255
   MODALS        : ['img']
   # MODALS        : ['img', 'depth']

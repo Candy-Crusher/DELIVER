@@ -75,9 +75,11 @@ def main(cfg, scene, classes, gpu, save_dir, duration):
 
         if flow_net_type == 'eraft':
             ## for eraft
-            if dataset_cfg['TYPE'] == 'dsec':
+            # if dataset_cfg['TYPE'] == 'dsec':
+            if dataset_cfg['TYPE'] == 'dsec_':
                 flownet_checkpoint = torch.load(resume_flownet_path, map_location=torch.device('cpu'), weights_only=True)['model']
-            elif dataset_cfg['TYPE'] == 'sdsec':
+            elif dataset_cfg['TYPE'] == 'dsec':
+            # elif dataset_cfg['TYPE'] == 'sdsec':
                 # flownet_checkpoint = torch.load(resume_flownet_path, map_location=torch.device('cpu'))
                 flownet_checkpoint = torch.load(resume_flownet_path, map_location=torch.device('cpu'), weights_only=True)
                 # 筛选出以 'flownet' 为前缀的键

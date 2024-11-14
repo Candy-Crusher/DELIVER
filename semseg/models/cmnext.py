@@ -204,12 +204,12 @@ class CMNeXt(BaseModel):
 
                 # t0 → t1
                 feature_t1 = self.softsplat_net(tenEncone=feature_init, tenForward=flow_t0_t1, event_voxel=ev_t0_t1)
-                self.visualize_feature("feature_t1", feature_t1[-1], save_path="feature_t1.png")
+                # self.visualize_feature("feature_t1", feature_t1[-1], save_path="feature_t1.png")
                 ## memory attention Fw, F0_c=None, Kd=None
                 feature_t1[-1] = self.fusion_attens(Fw=feature_t1[-1], F0_c=self.memory_bank[0])
                 # feature_t1[-1] = self.fusion_attens(Fw=feature_t1[-1], F0_c=None, Kd=self.memory_bank[0])
                 # feature_t1 = [self.fusion_attens[i](Fw=feature_t1[i], F0_c=None, Kd=self.memory_bank[0][i]) for i in range(4)]
-                self.visualize_feature("feature_t1_atten", feature_t1[-1], save_path="feature_t1_atten.png")
+                # self.visualize_feature("feature_t1_atten", feature_t1[-1], save_path="feature_t1_atten.png")
                 y_t1 = self.decode_head(feature_t1)
                 # self.visualize_feature("y_t1", y_t1, save_path="y_t1.png")
                 y.append(F.interpolate(y_t1, size=x[0].shape[2:], mode='bilinear', align_corners=False))
@@ -223,16 +223,16 @@ class CMNeXt(BaseModel):
 
                 # t1 → t2
                 feature_t2 = self.softsplat_net(tenEncone=feature_t1, tenForward=flow_t1_t2, event_voxel=ev_t1_t2)
-                self.visualize_feature("feature_t2", feature_t2[-1], save_path="feature_t2.png")
+                # self.visualize_feature("feature_t2", feature_t2[-1], save_path="feature_t2.png")
                 ## memory attention
                 # feature_t2[-1] = self.fusion_attens(Fw=feature_t2[-1], F0_c=None, Kd=self.memory_bank)
                 feature_t2[-1] = self.fusion_attens(Fw=feature_t2[-1], F0_c=self.memory_bank[0], Kd=self.memory_bank[1])
                 # feature_t2 = [self.fusion_attens[i](Fw=feature_t2[i], F0_c=self.memory_bank[0][i], Kd=self.memory_bank[1][i]) for i in range(4)]
-                self.visualize_feature("feature_t2_atten", feature_t2[-1], save_path="feature_t2_atten.png")
+                # self.visualize_feature("feature_t2_atten", feature_t2[-1], save_path="feature_t2_atten.png")
                 y_t2 = self.decode_head(feature_t2)
                 # self.visualize_feature("y_t2", y_t2, save_path="y_t2.png")
                 y.append(F.interpolate(y_t2, size=x[0].shape[2:], mode='bilinear', align_corners=False))
-                exit(0)
+                # exit(0)
                 return y
 
                 # ev = torch.cat([ev_t0_t1, ev_t1_t2], dim=1)

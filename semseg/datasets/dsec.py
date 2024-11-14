@@ -191,7 +191,8 @@ class DSEC(Dataset):
             self.bin = 40
         elif dataset_type == 'dsec':
             print(f"Loading DSEC dataset with {duration}ms duration.")
-            self.index_window = self.duration//50
+            # self.index_window = self.duration//50
+            self.index_window = self.duration//10
             self.bin = 20
     
         self.flow_net_flag = flow_net_flag
@@ -248,7 +249,8 @@ class DSEC(Dataset):
                 # event_path_before = get_new_name(lbl_path, idx_diff=0-2*self.index_window).replace(self.seg_gt_dirname, f'/event_t-{self.time_window}_t0/event_{self.bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
                 event_path = get_new_name(lbl_path, idx_diff=0-self.index_window).replace(self.seg_gt_dirname, f'/event_t0_t1/event_{self.bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
                 event_path_before = get_new_name(lbl_path, idx_diff=0-self.index_window-self.index_window//self.time_window).replace(self.seg_gt_dirname, f'/event_t-1_t0/event_{self.bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
-                if self.index_window == 2:
+                # if self.index_window == 2:
+                if self.index_window == 10:
                     event_path_after = get_new_name(lbl_path, idx_diff=0-self.index_window+self.index_window//self.time_window).replace(self.seg_gt_dirname, f'/event_t1_t2/event_{self.bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
                     event_voxel_after = np.load(event_path_after, allow_pickle=True)
                     sample['event_after'] = torch.from_numpy(event_voxel_after[:, :440])
@@ -307,7 +309,8 @@ class DSEC(Dataset):
         label = sample['mask']
         del sample['mask']
         label = [self.encode(label.squeeze().numpy()).long()]
-        if self.time_window == 2:
+        # if self.time_window == 2:
+        if self.time_window == 10:
             label_after = sample['mask_after']
             del sample['mask_after']
             label_after = self.encode(label_after.squeeze().numpy()).long()
@@ -325,7 +328,8 @@ class DSEC(Dataset):
             del sample['event']
             event_voxel_before = sample['event_before']
             del sample['event_before']
-            if self.index_window == 2:
+            # if self.index_window == 2:
+            if self.index_window == 10:
                 event_voxel_after = sample['event_after']
                 del sample['event_after']
         # img_next = sample['img_next']
@@ -338,7 +342,8 @@ class DSEC(Dataset):
         if self.time_window != 0:
             sample.append(event_voxel)
             sample.append(event_voxel_before)
-            if self.index_window == 2:
+            # if self.index_window == 2:
+            if self.index_window == 10:
                 sample.append(event_voxel_after)
             if not self.flow_net_flag:
                 sample.append(flow)
