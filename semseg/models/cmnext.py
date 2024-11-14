@@ -200,16 +200,16 @@ class CMNeXt(BaseModel):
                 # self.memory_bank = self.MemoryEncoder(feature_init[-1], y_t0).detach()
                 self.memory_bank = [feature_init[-1]]
                 # self.memory_bank = [feature_init]
-                # self.visualize_feature("feature_init", feature_init[-1], save_path="feature_init.png")
+                self.visualize_feature("feature_init", feature_init[-1], save_path="feature_init.png")
 
                 # t0 → t1
                 feature_t1 = self.softsplat_net(tenEncone=feature_init, tenForward=flow_t0_t1, event_voxel=ev_t0_t1)
-                # self.visualize_feature("feature_t1", feature_t1[-1], save_path="feature_t1.png")
+                self.visualize_feature("feature_t1", feature_t1[-1], save_path="feature_t1.png")
                 ## memory attention Fw, F0_c=None, Kd=None
                 feature_t1[-1] = self.fusion_attens(Fw=feature_t1[-1], F0_c=self.memory_bank[0])
                 # feature_t1[-1] = self.fusion_attens(Fw=feature_t1[-1], F0_c=None, Kd=self.memory_bank[0])
                 # feature_t1 = [self.fusion_attens[i](Fw=feature_t1[i], F0_c=None, Kd=self.memory_bank[0][i]) for i in range(4)]
-                # self.visualize_feature("feature_t1_atten", feature_t1[-1], save_path="feature_t1_atten.png")
+                self.visualize_feature("feature_t1_atten", feature_t1[-1], save_path="feature_t1_atten.png")
                 y_t1 = self.decode_head(feature_t1)
                 # self.visualize_feature("y_t1", y_t1, save_path="y_t1.png")
                 y.append(F.interpolate(y_t1, size=x[0].shape[2:], mode='bilinear', align_corners=False))
@@ -223,16 +223,16 @@ class CMNeXt(BaseModel):
 
                 # t1 → t2
                 feature_t2 = self.softsplat_net(tenEncone=feature_t1, tenForward=flow_t1_t2, event_voxel=ev_t1_t2)
-                # self.visualize_feature("feature_t2", feature_t2[-1], save_path="feature_t2.png")
+                self.visualize_feature("feature_t2", feature_t2[-1], save_path="feature_t2.png")
                 ## memory attention
                 # feature_t2[-1] = self.fusion_attens(Fw=feature_t2[-1], F0_c=None, Kd=self.memory_bank)
                 feature_t2[-1] = self.fusion_attens(Fw=feature_t2[-1], F0_c=self.memory_bank[0], Kd=self.memory_bank[1])
                 # feature_t2 = [self.fusion_attens[i](Fw=feature_t2[i], F0_c=self.memory_bank[0][i], Kd=self.memory_bank[1][i]) for i in range(4)]
-                # self.visualize_feature("feature_t2_atten", feature_t2[-1], save_path="feature_t2_atten.png")
+                self.visualize_feature("feature_t2_atten", feature_t2[-1], save_path="feature_t2_atten.png")
                 y_t2 = self.decode_head(feature_t2)
                 # self.visualize_feature("y_t2", y_t2, save_path="y_t2.png")
                 y.append(F.interpolate(y_t2, size=x[0].shape[2:], mode='bilinear', align_corners=False))
-                # exit(0)
+                exit(0)
                 return y
 
                 # ev = torch.cat([ev_t0_t1, ev_t1_t2], dim=1)
@@ -368,24 +368,36 @@ class CMNeXt(BaseModel):
         可视化特征图并保存为图像文件。
 
         参数：
-            name (str): 特征名称，用于标题。
+            name (str): 特征名称，用于标题（现已移除）。
             feature (Tensor): 要可视化的特征张量。
             save_path (str): 保存图像的路径。
         """
-        # 将特征从 (C, H, W) 转换为 (H, W, C)
+        # 取第一个样本的特征图
         feature = feature[0]
         feature_np = feature.detach().cpu().numpy()
-        # 选择第一个通道进行可视化
+        
+        # 对多通道特征进行平均以简化可视化
         if feature_np.shape[0] > 1:
             feature_to_plot = np.mean(feature_np, axis=0)
         else:
             feature_to_plot = feature_np[0]
 
-        plt.figure(figsize=(6,6))
+        # 创建图形，设置大小为6x6英寸
+        plt.figure(figsize=(6, 6))
+        
+        # 显示特征图，使用'viridis'颜色映射
         plt.imshow(feature_to_plot, cmap='viridis')
-        plt.title(name)
+        
+        # 移除标题
+        # plt.title(name)
+        
+        # 关闭坐标轴
         plt.axis('off')
-        plt.savefig(save_path, dpi=150)
+        
+        # 保存图像，去除边框和额外空白
+        plt.savefig(save_path, dpi=150, bbox_inches='tight', pad_inches=0)
+        
+        # 关闭图形以释放内存
         plt.close()
 
     def visualize_features_all(self, features):

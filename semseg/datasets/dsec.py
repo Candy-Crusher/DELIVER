@@ -202,6 +202,7 @@ class DSEC(Dataset):
         self.seg_gt_dirname = f'/gtFine_t{self.time_window}'
         # dt = 1
         # self.seg_gt_dirname = f'/gtFine_t{self.time_window}_dt{dt}'
+        print("Root: ", self.root)
         print(f"Loading {self.seg_gt_dirname} segmentation ground truth.")
         # self.files = sorted(glob.glob(os.path.join(*[root, 'leftImg8bit', split, '*', '*.png'])))
         # self.n_classes = 13
@@ -286,7 +287,7 @@ class DSEC(Dataset):
         # lbl_path = get_new_name(lbl_path, idx_diff=0-2).replace(self.seg_gt_dirname, f'/gtFine_t0_dt3')
         # lbl_path = get_new_name(lbl_path, idx_diff=0-3).replace(self.seg_gt_dirname, f'/gtFine_t0_dt2')
         # lbl_path = get_new_name(lbl_path, idx_diff=0-4).replace(self.seg_gt_dirname, f'/gtFine_t0_dt1')
-        lbl_path = get_new_name(lbl_path, idx_diff=0-5).replace(self.seg_gt_dirname, f'/gtFine_t0')
+        # lbl_path = get_new_name(lbl_path, idx_diff=0-5).replace(self.seg_gt_dirname, f'/gtFine_t0')
         label = io.read_image(lbl_path)[0,...].unsqueeze(0)
         # label_ref = io.read_image(lbl_path_t0)[0,...].unsqueeze(0)
         sample['mask'] = label[:, :440]
