@@ -194,6 +194,7 @@ class DSEC(Dataset):
             # self.index_window = self.duration//50
             self.index_window = self.duration//10
             self.bin = 20
+            # self.bin = 40
     
         self.flow_net_flag = flow_net_flag
         self.dataset_type = dataset_type
@@ -290,6 +291,16 @@ class DSEC(Dataset):
         # lbl_path = get_new_name(lbl_path, idx_diff=0-3).replace(self.seg_gt_dirname, f'/gtFine_t0_dt2')
         # lbl_path = get_new_name(lbl_path, idx_diff=0-4).replace(self.seg_gt_dirname, f'/gtFine_t0_dt1')
         # lbl_path = get_new_name(lbl_path, idx_diff=0-5).replace(self.seg_gt_dirname, f'/gtFine_t0')
+        # lbl_path = get_new_name(lbl_path, idx_diff=0-1).replace(self.seg_gt_dirname, f'/gtFine_t0_dt9')
+        # lbl_path = get_new_name(lbl_path, idx_diff=0-2).replace(self.seg_gt_dirname, f'/gtFine_t0_dt8')
+        # lbl_path = get_new_name(lbl_path, idx_diff=0-3).replace(self.seg_gt_dirname, f'/gtFine_t0_dt7')
+        # lbl_path = get_new_name(lbl_path, idx_diff=0-4).replace(self.seg_gt_dirname, f'/gtFine_t0_dt6')
+        # lbl_path = get_new_name(lbl_path, idx_diff=0-5).replace(self.seg_gt_dirname, f'/gtFine_t0_dt5')
+        # lbl_path = get_new_name(lbl_path, idx_diff=0-6).replace(self.seg_gt_dirname, f'/gtFine_t0_dt4')
+        # lbl_path = get_new_name(lbl_path, idx_diff=0-7).replace(self.seg_gt_dirname, f'/gtFine_t0_dt3')
+        # lbl_path = get_new_name(lbl_path, idx_diff=0-8).replace(self.seg_gt_dirname, f'/gtFine_t0_dt2')
+        # lbl_path = get_new_name(lbl_path, idx_diff=0-9).replace(self.seg_gt_dirname, f'/gtFine_t0_dt1')
+        # lbl_path = get_new_name(lbl_path, idx_diff=0-10).replace(self.seg_gt_dirname, f'/gtFine_t0')
         label = io.read_image(lbl_path)[0,...].unsqueeze(0)
         # label_ref = io.read_image(lbl_path_t0)[0,...].unsqueeze(0)
         sample['mask'] = label[:, :440]

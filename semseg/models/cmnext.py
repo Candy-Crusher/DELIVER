@@ -169,11 +169,22 @@ class CMNeXt(BaseModel):
                         # event_voxel_before = event_voxel_before[:, -20:]    # TODO can be set to -tau: ?
 
                     elif self.dataset_type == 'dsec':
-                        # 输入是ev_before -50 0 bin20 和 event_voxel 0 50 bin 20
+                        # # 输入是ev_before -50 0 bin20 和 event_voxel 0 50 bin 20
+                        # assert event_voxel_before.shape[1] == 20
+                        # assert  event_voxel.shape[1] == 20
+                        # tau = 50
+                        # index = tau//10*4    # interframe [0, 4, 8, 12, 16, 20] 0ms 10ms 20ms 30ms 40ms 50ms
+                        # bin = tau//10
+
+                        # 输入是ev_before -50 0 bin40 和 event_voxel 0 50 bin 40
                         assert event_voxel_before.shape[1] == 20
                         assert  event_voxel.shape[1] == 20
-                        tau = 50
-                        index = tau//10*4    # interframe [0, 4, 8, 12, 16, 20] 0ms 10ms 20ms 30ms 40ms 50ms
+                        event_voxel_after = x[3]
+                        assert event_voxel_after.shape[1] == 20
+                        event_voxel = torch.cat([event_voxel, event_voxel_after], dim=1)
+                        assert event_voxel.shape[1] == 40
+                        tau = 100
+                        index = tau//10*4    # interframe [0, 4, 8, 12, 16, 20, 24, 28, 32, 26, 40] 0ms 10ms 20ms 30ms 40ms 50ms 60 70 80 90 100ms
                         bin = tau//10
 
                     # event_voxel_before = event_voxel_before[:, -index:]    # TODO can be set to -index: ?
