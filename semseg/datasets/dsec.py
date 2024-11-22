@@ -191,8 +191,8 @@ class DSEC(Dataset):
             self.bin = 40
         elif dataset_type == 'dsec':
             print(f"Loading DSEC dataset with {duration}ms duration.")
-            # self.index_window = self.duration//50
-            self.index_window = self.duration//10
+            self.index_window = self.duration//50
+            # self.index_window = self.duration//10
             self.bin = 20
     
         self.flow_net_flag = flow_net_flag
@@ -290,6 +290,7 @@ class DSEC(Dataset):
         # lbl_path = get_new_name(lbl_path, idx_diff=0-3).replace(self.seg_gt_dirname, f'/gtFine_t0_dt2')
         # lbl_path = get_new_name(lbl_path, idx_diff=0-4).replace(self.seg_gt_dirname, f'/gtFine_t0_dt1')
         # lbl_path = get_new_name(lbl_path, idx_diff=0-5).replace(self.seg_gt_dirname, f'/gtFine_t0')
+        lbl_path = get_new_name(lbl_path, idx_diff=0-1).replace(self.seg_gt_dirname, f'/gtFine_t0')
         label = io.read_image(lbl_path)[0,...].unsqueeze(0)
         # label_ref = io.read_image(lbl_path_t0)[0,...].unsqueeze(0)
         sample['mask'] = label[:, :440]
