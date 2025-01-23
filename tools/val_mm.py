@@ -22,6 +22,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from semseg.utils.utils import fix_seeds, setup_cudnn, cleanup_ddp, setup_ddp, get_logger, cal_flops, print_iou
 # import Image
 from PIL import Image
+from torch.utils.tensorboard import SummaryWriter
 
 def concatenate_images(images, direction='horizontal'):
     if not images:
@@ -241,8 +242,8 @@ def main(cfg, scene, classes, model_path, duration):
     eval_path = os.path.join(os.path.dirname(model_path), '{}_eval_{}.txt'.format(scene, exp_time))
 
     for case in cases:
-        # dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'].replace("${DURATION}", str(duration)), 'val', classes, transform, cfg['DATASET']['MODALS'], case, duration=duration, flow_net_flag=cfg['MODEL']['FLOW_NET_FLAG'], dataset_type=cfg['DATASET']['TYPE'])
-        dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'].replace("${DURATION}", str(duration)), 'train', classes, transform, cfg['DATASET']['MODALS'], case, duration=duration, flow_net_flag=cfg['MODEL']['FLOW_NET_FLAG'], dataset_type=cfg['DATASET']['TYPE'])
+        dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'].replace("${DURATION}", str(duration)), 'val', classes, transform, cfg['DATASET']['MODALS'], case, duration=duration, flow_net_flag=cfg['MODEL']['FLOW_NET_FLAG'], dataset_type=cfg['DATASET']['TYPE'])
+        # dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'].replace("${DURATION}", str(duration)), 'train', classes, transform, cfg['DATASET']['MODALS'], case, duration=duration, flow_net_flag=cfg['MODEL']['FLOW_NET_FLAG'], dataset_type=cfg['DATASET']['TYPE'])
         # --- test set
         # dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'].replace("${DURATION}", str(duration)), 'test', transform, cfg['DATASET']['MODALS'], case)
 
@@ -251,6 +252,14 @@ def main(cfg, scene, classes, model_path, duration):
         msg = model.load_state_dict(torch.load(str(model_path), map_location='cuda'))
         print(msg)
         model = model.to(device)
+        # writer = SummaryWriter(str(save_dir))
+        logger.info('================== model complexity =====================')
+        cal_flops(model, cfg['DATASET']['MODALS'], logger)
+        # logger.info('================== model structure =====================')
+        # # logger.info(flownet_msg)
+        # logger.info(model)
+        # logger.info('================== training config =====================')
+        # logger.info(cfg)
         sampler_val = None
         dataloader = DataLoader(dataset, batch_size=eval_cfg['BATCH_SIZE'], num_workers=eval_cfg['BATCH_SIZE'], pin_memory=False, sampler=sampler_val)
         if True:
@@ -282,6 +291,7 @@ if __name__ == '__main__':
     parser.add_argument('--scene', type=str, default='night')
     parser.add_argument('--model_path', type=str, default='night')
     parser.add_argument('--classes', type=int, default=11)
+    parser.add_argument('--input_type', type=str, default='rgbe')
     parser.add_argument('--duration', type=int, default=50)
     args = parser.parse_args()
 
@@ -291,4 +301,13 @@ if __name__ == '__main__':
     setup_cudnn()
     # gpu = setup_ddp()
     # main(cfg, gpu)
+    modals = ''.join([m[0] for m in cfg['DATASET']['MODALS']])
+    model = cfg['MODEL']['BACKBONE']
+    exp_name = '_'.join(['inference', cfg['DATASET']['NAME'], model, modals])
+    save_dir = Path(cfg['SAVE_DIR'], exp_name)
+    if os.path.isfile(cfg['MODEL']['RESUME']):
+        save_dir =  Path(os.path.dirname(cfg['MODEL']['RESUME']))
+    os.makedirs(save_dir, exist_ok=True)
+    time_ = time.strftime('%Y%m%d_%H%M%S', time.localtime())
+    logger = get_logger(save_dir / f'{args.input_type}_{args.scene}_{args.classes}_{time_}_train.log')
     main(cfg, args.scene, args.classes, args.model_path, args.duration)

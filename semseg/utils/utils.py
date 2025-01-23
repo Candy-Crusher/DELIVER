@@ -16,6 +16,7 @@ from semseg import models
 import logging
 from fvcore.nn import flop_count_table, FlopCountAnalysis
 import datetime
+from thop import profile, clever_format
 
 def fix_seeds(seed: int = 3407) -> None:
     torch.manual_seed(seed)
@@ -143,12 +144,11 @@ def get_logger(log_file=None):
     logger.addHandler(stream_handler)
     return logger
 
-
+@torch.no_grad()
 def cal_flops(model, modals, logger):
-    x = [torch.zeros(1, 3, 512, 512) for _ in range(len(modals))]
-    event_voxel = torch.zeros(1, 20, 512, 512)
-    # x = [torch.zeros(2, 3, 512, 512) for _ in range(len(modals))] #--- PGSNet
-    # x = [torch.zeros(1, 3, 512, 512) for _ in range(len(modals))] # --- for HRFuser
+    model.eval()
+    x = [torch.zeros(1, 3, 260, 346) for _ in range(len(modals))]
+    # x = [torch.zeros(1, 3, 512, 512) for _ in range(len(modals))]
     if torch.distributed.is_initialized():
         if 'HR' in model.module.__class__.__name__:
             x = [torch.zeros(1, 3, 512, 512) for _ in range(len(modals))] # --- for HorNet
@@ -156,11 +156,45 @@ def cal_flops(model, modals, logger):
         if 'HR' in model.__class__.__name__:
             x = [torch.zeros(1, 3, 512, 512) for _ in range(len(modals))] # --- for HorNet
 
-    if torch.cuda.is_available:
+    if torch.cuda.is_available():
         x = [xi.cuda() for xi in x]
-        event_voxel = event_voxel.cuda()
         model = model.cuda()
-    logger.info(flop_count_table(FlopCountAnalysis(model, (x, event_voxel))))        
+
+    # Calculate FLOPs using fvcore
+    flops = FlopCountAnalysis(model, (x,))
+    logger.info(flop_count_table(flops))
+
+    # Calculate MACs using thop
+    macs, params = profile(model, inputs=(x,))
+    macs, params = clever_format([macs, params], "%.3f")
+    logger.info(f"MACs: {macs}, Params: {params}")
+
+    # Warm-up GPU
+    for _ in range(10):
+        _ = model(x)
+
+    # Measure inference time for a dummy input
+    start_time = time.time()
+    for _ in range(100):
+        _ = model(x)
+    end_time = time.time()
+    inference_time = (end_time - start_time) / 100
+    profiling_inference_time = test_model_latency(model, x, use_cuda=True)
+    logger.info(f"Inference time for a dummy input: {inference_time} seconds")
+    logger.info(f"Profiling Inference time for a dummy input: {profiling_inference_time} ms")
+
+    # Calcuate TOPs
+    if torch.cuda.is_available():
+        gpu_info = get_gpu_info()
+        if gpu_info:
+            cuda_cores = gpu_info['cuda_cores']
+            clock_speed_ghz = gpu_info['clock_speed_ghz']
+            tops = calculate_tops(cuda_cores, clock_speed_ghz)
+            logger.info(f"Theoretical Peak Performance: {tops:.3f} TOPS")
+            latency = macs / tops
+            logger.info(f"Latency: {latency:.3f} s")
+        else:
+            logger.info("CUDA is not available on this system.")
 
 def print_iou(epoch, iou, miou, acc, macc, class_names):
     assert len(iou) == len(class_names)
@@ -240,3 +274,32 @@ def nlc2nchw2nlc(module, x, hw_shape, contiguous=False, **kwargs):
         x = module(x, **kwargs)
         x = x.flatten(2).transpose(1, 2).contiguous()
     return x
+
+def get_gpu_info():
+    if not torch.cuda.is_available():
+        return None
+
+    device = torch.cuda.current_device()
+    device_name = torch.cuda.get_device_name(device)
+    properties = torch.cuda.get_device_properties(device)
+    cuda_cores = properties.multi_processor_count * 64  # Assuming 64 CUDA cores per SM
+    clock_speed_ghz = properties.clockRate / 1e6  # Convert from kHz to GHz
+
+    return {
+        "device_name": device_name,
+        "cuda_cores": cuda_cores,
+        "clock_speed_ghz": clock_speed_ghz
+    }
+
+def calculate_tops(cuda_cores, clock_speed_ghz, operations_per_cycle=2):
+    """
+    Calculate the theoretical peak performance (TOPS) of a GPU.
+
+    :param cuda_cores: Number of CUDA cores (or equivalent processing units)
+    :param clock_speed_ghz: Clock speed in GHz
+    :param operations_per_cycle: Number of operations per clock cycle (default is 2 for FP32)
+    :return: Peak performance in TOPS (Tera Operations Per Second)
+    """
+    flops = cuda_cores * clock_speed_ghz * 1e9 * operations_per_cycle
+    tops = flops / 1e12
+    return tops

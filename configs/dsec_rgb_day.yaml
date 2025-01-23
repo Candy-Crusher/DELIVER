@@ -4,12 +4,12 @@ SAVE_DIR        : 'output'          # output folder name used for saving the mod
 MODEL:
   NAME          : CMNeXt                                            # name of the model you are using
   BACKBONE      : CMNeXt-B2                                         # model variant
-  BACKBONE_FLAG : False
+  BACKBONE_FLAG : True
   PRETRAINED_BACKBONE    : 'checkpoints/pretrained/segformer/mit_b2.pth'     # backbone model's weight 
   # PRETRAINED        : '/home/xiaoshan/work/adap_v/DELIVER/output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch356_73.55.pth'     # backbone model's weight 
-  PRETRAINED      : 'output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch258_63.93.pth'
-  # PRETRAINED    : 'output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch220_73.99.pth'
-  FLOW_NET_FLAG : True
+  # PRETRAINED      : 'output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch258_63.93.pth'
+  PRETRAINED    : 'output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch220_73.99.pth'
+  FLOW_NET_FLAG : False
   FLOW_NET      : 'eraft'
   RESUME_FLOWNET: 'model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch106_0.41733222244595924.pth'
   # RESUME_FLOWNET: 'dsec.tar'
@@ -23,9 +23,11 @@ DATASET:
   NAME          : DSEC                                          # dataset name to be trained with (camvid, cityscapes, ade20k)
   TYPE          : dsec
   # ROOT          : '/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime/day'                                   # dataset root path
+  ROOT          : "/mnt/sdb/datasets/dsec_anytime_50_N/day"                                   # dataset root path
+  # ROOT          : "/mnt/sdb/datasets/dsec_anytime_${DURATION}_N/day"                                   # dataset root path
   # ROOT          : "/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_${DURATION}_N/day"                                   # dataset root path
   # ROOT          : "/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_100/viz_05a/day"
-  ROOT          : "/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_100/synthesis_N11_45_100"
+  # ROOT          : "/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_100/synthesis_N11_45_100"
   IGNORE_LABEL  : 255
   MODALS        : ['img']
   # MODALS        : ['img', 'depth']
