@@ -199,8 +199,8 @@ class DSEC(Dataset):
         self.dataset_type = dataset_type
         self.iterframe_test = False
         # self.seg_gt_dirname = f'/gtFine_t1_interpolation'
-        # self.seg_gt_dirname = f'/gtFine_t1'
-        self.seg_gt_dirname = f'/gtFine_t{self.time_window}'
+        self.seg_gt_dirname = f'/gtFine_t1'
+        # self.seg_gt_dirname = f'/gtFine_t{self.time_window}'
         # dt = 1
         # self.seg_gt_dirname = f'/gtFine_t{self.time_window}_dt{dt}'
         print("Root: ", self.root)
