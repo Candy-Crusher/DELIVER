@@ -8,16 +8,17 @@ python tools/val_mm.py \
     --cfg configs/dsec_${input_type}_${eval_dataset}.yaml \
     --scene dsec_${input_type}_${eval_dataset} \
     --classes 11 \
-    --duration 0 \
-    --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch220_73.99.pth  # segformer
+    --duration 50 \
+    --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch223_73.32.pth \
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch233_72.29.pth
+    # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch369_67.67.pth
+    # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch220_73.99.pth  # segformer
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch135_72.23.pth
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch4_39.26.pth
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch73_70.93.pth
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch295_73.3.pth
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch98_73.5.pth
     # --model_path output/DSEC_CMNeXt-B2_i/model_night_11_CMNeXt_CMNeXt-B2_DSEC_epoch186_73.04.pth
-    # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch369_67.67.pth
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch200_72.01.pth
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch217_71.95.pth  # N eraft 100ms
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch243_71.3.pth  # raft 100ms
@@ -34,7 +35,6 @@ python tools/val_mm.py \
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch105_62.93.pth
     # --model_path output/DSEC_CMNeXt-B2_ie/model_all_11_CMNeXt_CMNeXt-B2_DSEC_epoch204_73.29.pth \
     # --model_path output/DSEC_CMNeXt-B2_i/model_all_11_CMNeXt_CMNeXt-B2_DSEC_epoch196_73.44.pth \
-    # --model_path output/DSEC_CMNeXt-B2_ie/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch360_73.32.pth \
     # --model_path output/DSEC_CMNeXt-B2_ie/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch245_72.59.pth \
     # --model_path output/DSEC_CMNeXt-B2_i/model_night_11_CMNeXt_CMNeXt-B2_DSEC_epoch340_68.88.pth \
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch327_72.71.pth \

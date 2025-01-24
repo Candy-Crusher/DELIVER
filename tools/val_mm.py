@@ -19,7 +19,7 @@ import numpy as np
 from torch.utils.data import DistributedSampler, RandomSampler
 from torch import distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
-from semseg.utils.utils import fix_seeds, setup_cudnn, cleanup_ddp, setup_ddp, get_logger, cal_flops, print_iou
+from semseg.utils.utils import fix_seeds, setup_cudnn, cleanup_ddp, setup_ddp, get_logger, cal_flops, cal_latency, print_iou
 # import Image
 from PIL import Image
 from torch.utils.tensorboard import SummaryWriter
@@ -247,7 +247,7 @@ def main(cfg, scene, classes, model_path, duration):
         # --- test set
         # dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'].replace("${DURATION}", str(duration)), 'test', transform, cfg['DATASET']['MODALS'], case)
 
-        model = eval(cfg['MODEL']['NAME'])(cfg['MODEL']['BACKBONE'], dataset.n_classes, cfg['DATASET']['MODALS'], cfg['MODEL']['BACKBONE_FLAG'], cfg['MODEL']['FLOW_NET_FLAG'], dataset_type=cfg['DATASET']['TYPE'], anytime_flag=True)
+        model = eval(cfg['MODEL']['NAME'])(cfg['MODEL']['BACKBONE'], dataset.n_classes, cfg['DATASET']['MODALS'], cfg['MODEL']['BACKBONE_FLAG'], cfg['MODEL']['FLOW_NET_FLAG'], dataset_type=cfg['DATASET']['TYPE'], anytime_flag=False)
         # model = eval(cfg['MODEL']['NAME'])(cfg['MODEL']['BACKBONE'], 11, cfg['DATASET']['MODALS'], cfg['MODEL']['BACKBONE_FLAG'], cfg['MODEL']['FLOW_NET_FLAG'])
         msg = model.load_state_dict(torch.load(str(model_path), map_location='cuda'))
         print(msg)
@@ -255,6 +255,8 @@ def main(cfg, scene, classes, model_path, duration):
         # writer = SummaryWriter(str(save_dir))
         logger.info('================== model complexity =====================')
         cal_flops(model, cfg['DATASET']['MODALS'], logger)
+        # cal_latency(model, cfg['DATASET']['MODALS'], logger)
+        exit(0)
         # logger.info('================== model structure =====================')
         # # logger.info(flownet_msg)
         # logger.info(model)

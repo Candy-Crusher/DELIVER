@@ -191,16 +191,16 @@ class DSEC(Dataset):
             self.bin = 40
         elif dataset_type == 'dsec':
             print(f"Loading DSEC dataset with {duration}ms duration.")
-            # self.index_window = self.duration//50
-            self.index_window = self.duration//10
+            self.index_window = self.duration//50
+            # self.index_window = self.duration//10
             self.bin = 20
     
         self.flow_net_flag = flow_net_flag
         self.dataset_type = dataset_type
         self.iterframe_test = False
         # self.seg_gt_dirname = f'/gtFine_t1_interpolation'
-        self.seg_gt_dirname = f'/gtFine_t1'
-        # self.seg_gt_dirname = f'/gtFine_t{self.time_window}'
+        # self.seg_gt_dirname = f'/gtFine_t1'
+        self.seg_gt_dirname = f'/gtFine_t{self.time_window}'
         # dt = 1
         # self.seg_gt_dirname = f'/gtFine_t{self.time_window}_dt{dt}'
         print("Root: ", self.root)
@@ -268,9 +268,9 @@ class DSEC(Dataset):
                     sample['flow'] = torch.from_numpy(flow[:, :440])
         else:
             # rgb_path = lbl_path.replace(self.seg_gt_dirname, '/leftImg8bit_t0').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
-            rgb_path = lbl_path.replace(self.seg_gt_dirname, '/leftImg8bit_t1').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
+            # rgb_path = lbl_path.replace(self.seg_gt_dirname, '/leftImg8bit_t1').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
             # rgb_path = lbl_path.replace(self.seg_gt_dirname, '/leftImg8bit_t0_dt5').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
-            # rgb_path = get_new_name(lbl_path, idx_diff=-1).replace(self.seg_gt_dirname, '/leftImg8bit_t0').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
+            rgb_path = get_new_name(lbl_path, idx_diff=-1).replace(self.seg_gt_dirname, '/leftImg8bit_t0').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
             # rgb_path = lbl_path.replace(self.seg_gt_dirname, '/leftImg8bit_t1_interpolation').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
             # rgb_path = get_new_name(lbl_path, idx_diff=-1).replace(self.seg_gt_dirname, '/leftImg8bit_t0').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
 

@@ -14,7 +14,7 @@ from torch import distributed as dist
 from tabulate import tabulate
 from semseg import models
 import logging
-from fvcore.nn import flop_count_table, FlopCountAnalysis
+from fvcore.nn import flop_count_table, FlopCountAnalysis, parameter_count_table
 import datetime
 from thop import profile, clever_format
 def fix_seeds(seed: int = 3407) -> None:
@@ -143,11 +143,31 @@ def get_logger(log_file=None):
     logger.addHandler(stream_handler)
     return logger
 
-@torch.no_grad()
+# 自定义层级 MACs 的钩子
+def detailed_profile(model, inputs):
+    macs, params, layer_details = profile(
+        model,
+        inputs=(inputs,),
+        detailed=True,  # 开启详细模式
+        custom_ops={},
+    )
+    macs, params = clever_format([macs, params], "%.3f")
+    print(f"Total MACs: {macs}")
+    print(f"Total Params: {params}")
+    print("Layer-wise MACs:")
+    for layer_name, layer_info in layer_details.items():
+        print(f"{layer_name}: MACs = {clever_format([layer_info['macs']], '%.3f')[0]}, Params = {clever_format([layer_info['params']], '%.3f')[0]}")
+
+# @torch.no_grad()
 def cal_flops(model, modals, logger):
     model.eval()
-    x = [torch.zeros(1, 3, 260, 346) for _ in range(len(modals))]
-    # x = [torch.zeros(1, 3, 512, 512) for _ in range(len(modals))]
+    # # if test on Segformer:
+    # x = [torch.zeros(1, 3, 440, 640) for _ in range(len(modals))]
+    # elif test on Ours w/o memory:
+    # x[0]: torch.Size([4, 3, 440, 640])
+    # x[1]: torch.Size([4, 20, 440, 640])
+    # x[2]: torch.Size([4, 20, 440, 640])
+    x = [torch.zeros(1, 3, 440, 640), torch.zeros(1, 20, 440, 640), torch.zeros(1, 20, 440, 640)]
     if torch.distributed.is_initialized():
         if 'HR' in model.module.__class__.__name__:
             x = [torch.zeros(1, 3, 512, 512) for _ in range(len(modals))] # --- for HorNet
@@ -162,12 +182,35 @@ def cal_flops(model, modals, logger):
     # Calculate FLOPs using fvcore
     flops = FlopCountAnalysis(model, (x,))
     logger.info(flop_count_table(flops))
+    # 强制输出 FLOPs 为 GFLOPs
+    flops_in_gflops = flops.total() / 1e9  # 强制以 GFLOPs 为单位
+    print(f"FLOPs: {flops_in_gflops:.3f} GFLOPs")
 
     # Calculate MACs using thop
     macs, params = profile(model, inputs=(x,))
     macs, params = clever_format([macs, params], "%.3f")
     logger.info(f"MACs: {macs}, Params: {params}")
 
+@torch.no_grad()
+def cal_latency(model, modals, logger):
+    model.eval()
+# # if test on Segformer:
+    # x = [torch.zeros(1, 3, 440, 640) for _ in range(len(modals))]
+    # elif test on Ours w/o memory:
+    # x[0]: torch.Size([4, 3, 440, 640])
+    # x[1]: torch.Size([4, 20, 440, 640])
+    # x[2]: torch.Size([4, 20, 440, 640])
+    x = [torch.zeros(1, 3, 440, 640), torch.zeros(1, 20, 440, 640), torch.zeros(1, 20, 440, 640)]
+    if torch.distributed.is_initialized():
+        if 'HR' in model.module.__class__.__name__:
+            x = [torch.zeros(1, 3, 512, 512) for _ in range(len(modals))] # --- for HorNet
+    else:
+        if 'HR' in model.__class__.__name__:
+            x = [torch.zeros(1, 3, 512, 512) for _ in range(len(modals))] # --- for HorNet
+
+    if torch.cuda.is_available():
+        x = [xi.cuda() for xi in x]
+        model = model.cuda()
     # Warm-up GPU
     for _ in range(10):
         _ = model(x)
@@ -178,9 +221,9 @@ def cal_flops(model, modals, logger):
         _ = model(x)
     end_time = time.time()
     inference_time = (end_time - start_time) / 100
-    profiling_inference_time = test_model_latency(model, x, use_cuda=True)
+    # profiling_inference_time = test_model_latency(model, x, use_cuda=True)
     logger.info(f"Inference time for a dummy input: {inference_time} seconds")
-    logger.info(f"Profiling Inference time for a dummy input: {profiling_inference_time} ms")
+    # logger.info(f"Profiling Inference time for a dummy input: {profiling_inference_time} ms")
 
 def print_iou(epoch, iou, miou, acc, macc, class_names):
     assert len(iou) == len(class_names)
