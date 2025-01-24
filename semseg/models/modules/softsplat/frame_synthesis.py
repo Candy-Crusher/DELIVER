@@ -623,8 +623,12 @@ class Synthesis(torch.nn.Module):
     #     else:
     #         tenWarp = self.netWarp(tenEncone, tenMetricone, tenForward)
     #         return tenWarp
-    def forward(self, tenEncone, tenForward, event_voxel):
-        tenMetricone = self.netSoftmetric(event_voxel, tenForward) * 2.0
+    def forward(self, tenEncone, tenForward, event_voxel, second_anytime_flag=False):
+        if second_anytime_flag==True:
+            # torch.zeros B 1 H W
+            tenMetricone = torch.zeros(tenForward.shape[0], 1, tenForward.shape[2], tenForward.shape[3]).to(tenForward.device)
+        else:
+            tenMetricone = self.netSoftmetric(event_voxel, tenForward) * 2.0
         tenWarp = self.netWarp(tenEncone, tenMetricone, tenForward)
         return tenWarp
 

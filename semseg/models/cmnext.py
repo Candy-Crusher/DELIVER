@@ -213,9 +213,9 @@ class CMNeXt(BaseModel):
                 # feature_t1[-1] = self.fusion_attens(Fw=feature_t1[-1], F0_c=None, Kd=self.memory_bank[0])
                 # feature_t1 = [self.fusion_attens[i](Fw=feature_t1[i], F0_c=None, Kd=self.memory_bank[0][i]) for i in range(4)]
                 # self.visualize_feature("feature_t1_atten", feature_t1[-1], save_path="feature_t1_atten.png")
-                y_t1 = self.decode_head(feature_t1)
+                # y_t1 = self.decode_head(feature_t1)
                 # self.visualize_feature("y_t1", y_t1, save_path="y_t1.png")
-                y.append(F.interpolate(y_t1, size=x[0].shape[2:], mode='bilinear', align_corners=False))
+                # y.append(F.interpolate(y_t1, size=x[0].shape[2:], mode='bilinear', align_corners=False))
                 # if anytime_flag:
                     # return y
                 # self.memory_bank = [self.MemoryEncoder[i](feature_t1[i], y_t1).detach() for i in range(4)]
@@ -225,7 +225,7 @@ class CMNeXt(BaseModel):
                 # self.memory_bank.append(feature_t1)
 
                 # t1 → t2
-                feature_t2 = self.softsplat_net(tenEncone=feature_t1, tenForward=flow_t1_t2, event_voxel=ev_t1_t2)
+                feature_t2 = self.softsplat_net(tenEncone=feature_t1, tenForward=flow_t1_t2, event_voxel=ev_t1_t2, second_anytime_flag=self.anytime_flag)
                 # self.visualize_feature("feature_t2", feature_t2[-1], save_path="feature_t2.png")
                 ## memory attention
                 # feature_t2[-1] = self.fusion_attens(Fw=feature_t2[-1], F0_c=None, Kd=self.memory_bank)

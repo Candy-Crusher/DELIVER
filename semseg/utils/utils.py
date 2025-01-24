@@ -162,12 +162,12 @@ def detailed_profile(model, inputs):
 def cal_flops(model, modals, logger):
     model.eval()
     # # if test on Segformer:
-    x = [torch.zeros(1, 3, 440, 640) for _ in range(len(modals))]
+    # x = [torch.zeros(1, 3, 440, 640) for _ in range(len(modals))]
     # elif test on Ours w/o memory:
     # x[0]: torch.Size([4, 3, 440, 640])
     # x[1]: torch.Size([4, 20, 440, 640])
     # x[2]: torch.Size([4, 20, 440, 640])
-    # x = [torch.zeros(1, 3, 440, 640), torch.zeros(1, 20, 440, 640), torch.zeros(1, 20, 440, 640)]
+    x = [torch.zeros(1, 3, 440, 640), torch.zeros(1, 20, 440, 640), torch.zeros(1, 20, 440, 640)]
     if torch.distributed.is_initialized():
         if 'HR' in model.module.__class__.__name__:
             x = [torch.zeros(1, 3, 512, 512) for _ in range(len(modals))] # --- for HorNet
@@ -194,13 +194,13 @@ def cal_flops(model, modals, logger):
 @torch.no_grad()
 def cal_latency(model, modals, logger):
     model.eval()
-# # if test on Segformer:
-    x = [torch.zeros(1, 3, 440, 640) for _ in range(len(modals))]
+    # # if test on Segformer:
+    # x = [torch.zeros(1, 3, 440, 640) for _ in range(len(modals))]
     # elif test on Ours w/o memory:
     # x[0]: torch.Size([4, 3, 440, 640])
     # x[1]: torch.Size([4, 20, 440, 640])
     # x[2]: torch.Size([4, 20, 440, 640])
-    # x = [torch.zeros(1, 3, 440, 640), torch.zeros(1, 20, 440, 640), torch.zeros(1, 20, 440, 640)]
+    x = [torch.zeros(1, 3, 440, 640), torch.zeros(1, 20, 440, 640), torch.zeros(1, 20, 440, 640)]
     if torch.distributed.is_initialized():
         if 'HR' in model.module.__class__.__name__:
             x = [torch.zeros(1, 3, 512, 512) for _ in range(len(modals))] # --- for HorNet

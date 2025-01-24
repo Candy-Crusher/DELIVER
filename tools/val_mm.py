@@ -247,7 +247,7 @@ def main(cfg, scene, classes, model_path, duration):
         # --- test set
         # dataset = eval(cfg['DATASET']['NAME'])(cfg['DATASET']['ROOT'].replace("${DURATION}", str(duration)), 'test', transform, cfg['DATASET']['MODALS'], case)
 
-        model = eval(cfg['MODEL']['NAME'])(cfg['MODEL']['BACKBONE'], dataset.n_classes, cfg['DATASET']['MODALS'], cfg['MODEL']['BACKBONE_FLAG'], cfg['MODEL']['FLOW_NET_FLAG'], dataset_type=cfg['DATASET']['TYPE'], anytime_flag=False)
+        model = eval(cfg['MODEL']['NAME'])(cfg['MODEL']['BACKBONE'], dataset.n_classes, cfg['DATASET']['MODALS'], cfg['MODEL']['BACKBONE_FLAG'], cfg['MODEL']['FLOW_NET_FLAG'], dataset_type=cfg['DATASET']['TYPE'], anytime_flag=True)
         # model = eval(cfg['MODEL']['NAME'])(cfg['MODEL']['BACKBONE'], 11, cfg['DATASET']['MODALS'], cfg['MODEL']['BACKBONE_FLAG'], cfg['MODEL']['FLOW_NET_FLAG'])
         msg = model.load_state_dict(torch.load(str(model_path), map_location='cuda'))
         print(msg)
