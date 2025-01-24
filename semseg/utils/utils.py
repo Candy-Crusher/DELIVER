@@ -17,7 +17,6 @@ import logging
 from fvcore.nn import flop_count_table, FlopCountAnalysis
 import datetime
 from thop import profile, clever_format
-
 def fix_seeds(seed: int = 3407) -> None:
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
@@ -183,19 +182,6 @@ def cal_flops(model, modals, logger):
     logger.info(f"Inference time for a dummy input: {inference_time} seconds")
     logger.info(f"Profiling Inference time for a dummy input: {profiling_inference_time} ms")
 
-    # Calcuate TOPs
-    if torch.cuda.is_available():
-        gpu_info = get_gpu_info()
-        if gpu_info:
-            cuda_cores = gpu_info['cuda_cores']
-            clock_speed_ghz = gpu_info['clock_speed_ghz']
-            tops = calculate_tops(cuda_cores, clock_speed_ghz)
-            logger.info(f"Theoretical Peak Performance: {tops:.3f} TOPS")
-            latency = macs / tops
-            logger.info(f"Latency: {latency:.3f} s")
-        else:
-            logger.info("CUDA is not available on this system.")
-
 def print_iou(epoch, iou, miou, acc, macc, class_names):
     assert len(iou) == len(class_names)
     assert len(acc) == len(class_names)
@@ -274,32 +260,3 @@ def nlc2nchw2nlc(module, x, hw_shape, contiguous=False, **kwargs):
         x = module(x, **kwargs)
         x = x.flatten(2).transpose(1, 2).contiguous()
     return x
-
-def get_gpu_info():
-    if not torch.cuda.is_available():
-        return None
-
-    device = torch.cuda.current_device()
-    device_name = torch.cuda.get_device_name(device)
-    properties = torch.cuda.get_device_properties(device)
-    cuda_cores = properties.multi_processor_count * 64  # Assuming 64 CUDA cores per SM
-    clock_speed_ghz = properties.clockRate / 1e6  # Convert from kHz to GHz
-
-    return {
-        "device_name": device_name,
-        "cuda_cores": cuda_cores,
-        "clock_speed_ghz": clock_speed_ghz
-    }
-
-def calculate_tops(cuda_cores, clock_speed_ghz, operations_per_cycle=2):
-    """
-    Calculate the theoretical peak performance (TOPS) of a GPU.
-
-    :param cuda_cores: Number of CUDA cores (or equivalent processing units)
-    :param clock_speed_ghz: Clock speed in GHz
-    :param operations_per_cycle: Number of operations per clock cycle (default is 2 for FP32)
-    :return: Peak performance in TOPS (Tera Operations Per Second)
-    """
-    flops = cuda_cores * clock_speed_ghz * 1e9 * operations_per_cycle
-    tops = flops / 1e12
-    return tops

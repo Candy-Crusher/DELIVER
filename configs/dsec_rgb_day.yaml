@@ -23,8 +23,9 @@ DATASET:
   NAME          : DSEC                                          # dataset name to be trained with (camvid, cityscapes, ade20k)
   TYPE          : dsec
   # ROOT          : '/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime/day'                                   # dataset root path
-  ROOT          : "/mnt/sdb/datasets/dsec_anytime_50_N/day"                                   # dataset root path
+  # ROOT          : "/mnt/sdb/datasets/dsec_anytime_50_N/day"                                   # dataset root path
   # ROOT          : "/mnt/sdb/datasets/dsec_anytime_${DURATION}_N/day"                                   # dataset root path
+  ROOT          : "/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_50_N/day"                                   # dataset root path
   # ROOT          : "/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_${DURATION}_N/day"                                   # dataset root path
   # ROOT          : "/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_100/viz_05a/day"
   # ROOT          : "/mnt/sdc/lxy/datasets/DSEC/DSEC/dsec_anytime_100/synthesis_N11_45_100"
