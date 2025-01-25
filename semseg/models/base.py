@@ -45,6 +45,7 @@ class BaseModel(nn.Module):
         self.backbone_flag = backbone_flag
         self.dataset_type = dataset_type
         self.anytime_flag = anytime_flag
+        self.with_events = with_events
 
     def _init_weights(self, m: nn.Module) -> None:
         if isinstance(m, nn.Linear):

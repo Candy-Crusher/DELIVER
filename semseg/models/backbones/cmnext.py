@@ -26,12 +26,9 @@ class Attention(nn.Module):
             self.sr = nn.Conv2d(dim, dim, sr_ratio, sr_ratio)
             self.norm = nn.LayerNorm(dim)
 
-    def forward(self, x: Tensor, H, W, metric: Tensor=None) -> Tensor:
+    def forward(self, x: Tensor, H, W) -> Tensor:
         B, N, C = x.shape
-        if metric is None:
-            q = self.q(x).reshape(B, N, self.head, C // self.head).permute(0, 2, 1, 3)
-        else:
-            q = self.q(metric).reshape(B, N, self.head, C // self.head).permute(0, 2, 1, 3)
+        q = self.q(x).reshape(B, N, self.head, C // self.head).permute(0, 2, 1, 3)
 
         if self.sr_ratio > 1:
             x = x.permute(0, 2, 1).reshape(B, C, H, W)
@@ -105,8 +102,8 @@ class Block(nn.Module):
         self.norm2 = nn.LayerNorm(dim)
         self.mlp = MLP(dim, int(dim*4)) if not is_fan else ChannelProcessing(dim, mlp_hidden_dim=int(dim*4))
 
-    def forward(self, x: Tensor, H, W, metric: Tensor=None) -> Tensor:
-        x = x + self.drop_path(self.attn(self.norm1(x), H, W, metric))
+    def forward(self, x: Tensor, H, W) -> Tensor:
+        x = x + self.drop_path(self.attn(self.norm1(x), H, W))
         x = x + self.drop_path(self.mlp(self.norm2(x), H, W))
         return x
 
@@ -230,7 +227,7 @@ class CMNeXt(nn.Module):
         # if self.num_modals > 0:
         if self.with_events:
             self.extra_downsample_layers = nn.ModuleList([
-                PatchEmbedParallel(5, embed_dims[0], 7, 4, 7//2, 1),
+                PatchEmbedParallel(4, embed_dims[0], 7, 4, 7//2, 1),
                 *[PatchEmbedParallel(embed_dims[i], embed_dims[i+1], 3, 2, 3//2, 1) for i in range(3)]
             ])
         if self.num_modals > 1:
@@ -271,17 +268,18 @@ class CMNeXt(nn.Module):
             self.extra_norm4 = ConvLayerNorm(embed_dims[3])
 
         # if self.num_modals > 0:
-        #     num_heads = [1,2,5,8]
-        #     self.FRMs = nn.ModuleList([
-        #         FRM(dim=embed_dims[0], reduction=1),
-        #         FRM(dim=embed_dims[1], reduction=1),
-        #         FRM(dim=embed_dims[2], reduction=1),
-        #         FRM(dim=embed_dims[3], reduction=1)])
-        #     self.FFMs = nn.ModuleList([
-        #         FFM(dim=embed_dims[0], reduction=1, num_heads=num_heads[0], norm_layer=nn.BatchNorm2d),
-        #         FFM(dim=embed_dims[1], reduction=1, num_heads=num_heads[1], norm_layer=nn.BatchNorm2d),
-        #         FFM(dim=embed_dims[2], reduction=1, num_heads=num_heads[2], norm_layer=nn.BatchNorm2d),
-        #         FFM(dim=embed_dims[3], reduction=1, num_heads=num_heads[3], norm_layer=nn.BatchNorm2d)])
+        if self.with_events:
+            num_heads = [1,2,5,8]
+            self.FRMs = nn.ModuleList([
+                FRM(dim=embed_dims[0], reduction=1),
+                FRM(dim=embed_dims[1], reduction=1),
+                FRM(dim=embed_dims[2], reduction=1),
+                FRM(dim=embed_dims[3], reduction=1)])
+            self.FFMs = nn.ModuleList([
+                FFM(dim=embed_dims[0], reduction=1, num_heads=num_heads[0], norm_layer=nn.BatchNorm2d),
+                FFM(dim=embed_dims[1], reduction=1, num_heads=num_heads[1], norm_layer=nn.BatchNorm2d),
+                FFM(dim=embed_dims[2], reduction=1, num_heads=num_heads[2], norm_layer=nn.BatchNorm2d),
+                FFM(dim=embed_dims[3], reduction=1, num_heads=num_heads[3], norm_layer=nn.BatchNorm2d)])
 
     def tokenselect(self, x_ext, module):    
         x_scores = module(x_ext) 
@@ -290,23 +288,18 @@ class CMNeXt(nn.Module):
         x_f = functools.reduce(torch.max, x_ext)
         return x_f
      
-    def forward(self, x: list, x_ext: list=None, metric: Tensor=None) -> list:
-        x_cam = x[0]
-        metric_ = None
-        if self.num_modals > 0:
-            x_ext = x[1:]
+    def forward(self, x: list) -> list:
+        x_cam = x[0]        
+        # if self.num_modals > 0:
+        if self.with_events:
+            bin=5
+            x_ext = [torch.cat([x[1][:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)]
         B = x_cam.shape[0]
         outs = []
-        if self.with_events:
-            outs_event = []
         # stage 1
         x_cam, H, W = self.patch_embed1(x_cam)
-        if metric is not None:
-            metric_ = metric[0].flatten(2).transpose(1, 2)
-        #     metric = torch.nn.functional.interpolate(input=metric, size=(H, W), mode='bilinear', align_corners=False)
-        #     metric_ = metric.flatten(2).transpose(1, 2).repeat(1, 1, x_cam.shape[-1])
         for blk in self.block1:
-            x_cam = blk(x_cam, H, W, metric_)
+            x_cam = blk(x_cam, H, W)
         x1_cam = self.norm1(x_cam).reshape(B, H, W, -1).permute(0, 3, 1, 2)
         # if self.num_modals > 0:
         if self.with_events:
@@ -315,23 +308,17 @@ class CMNeXt(nn.Module):
             for blk in self.extra_block1:
                 x_f = blk(x_f)
             x1_f = self.extra_norm1(x_f)
-            # x1_cam, x1_f = self.FRMs[0](x1_cam, x1_f)
-            # x_fused = self.FFMs[0](x1_cam, x1_f)
-            # outs.append(x_fused)
-            outs.append(x1_cam)
-            outs_event.append(x1_f)
+            x1_cam, x1_f = self.FRMs[0](x1_cam, x1_f)
+            x_fused = self.FFMs[0](x1_cam, x1_f)
+            outs.append(x_fused)
             x_ext = [x_.reshape(B, H, W, -1).permute(0, 3, 1, 2) + x1_f for x_ in x_ext] if self.num_modals > 1 else [x1_f]
         else:
             outs.append(x1_cam)
 
         # stage 2
         x_cam, H, W = self.patch_embed2(x1_cam)
-        if metric is not None:
-            metric_ = metric[1].flatten(2).transpose(1, 2)
-            # metric = torch.nn.functional.interpolate(input=metric, size=(H, W), mode='bilinear', align_corners=False)
-            # metric_ = metric.flatten(2).transpose(1, 2).repeat(1, 1, x_cam.shape[-1])
         for blk in self.block2:
-            x_cam = blk(x_cam, H, W, metric_)
+            x_cam = blk(x_cam, H, W)
         x2_cam = self.norm2(x_cam).reshape(B, H, W, -1).permute(0, 3, 1, 2)
         # if self.num_modals > 0:
         if self.with_events:
@@ -341,23 +328,17 @@ class CMNeXt(nn.Module):
                 x_f = blk(x_f)
             
             x2_f = self.extra_norm2(x_f)
-            # x2_cam, x2_f = self.FRMs[1](x2_cam, x2_f)
-            # x_fused = self.FFMs[1](x2_cam, x2_f)
-            # outs.append(x_fused)
-            outs.append(x2_cam)
-            outs_event.append(x2_f)
+            x2_cam, x2_f = self.FRMs[1](x2_cam, x2_f)
+            x_fused = self.FFMs[1](x2_cam, x2_f)
+            outs.append(x_fused)
             x_ext = [x_.reshape(B, H, W, -1).permute(0, 3, 1, 2) + x2_f for x_ in x_ext] if self.num_modals > 1 else [x2_f]
         else:
             outs.append(x2_cam)
 
         # stage 3
         x_cam, H, W = self.patch_embed3(x2_cam)
-        if metric is not None:
-            metric_ = metric[2].flatten(2).transpose(1, 2)
-            # metric = torch.nn.functional.interpolate(input=metric, size=(H, W), mode='bilinear', align_corners=False)
-            # metric_ = metric.flatten(2).transpose(1, 2).repeat(1, 1, x_cam.shape[-1])
         for blk in self.block3:
-            x_cam = blk(x_cam, H, W, metric_)
+            x_cam = blk(x_cam, H, W)
         x3_cam = self.norm3(x_cam).reshape(B, H, W, -1).permute(0, 3, 1, 2)
         # if self.num_modals > 0:
         if self.with_events:
@@ -367,23 +348,17 @@ class CMNeXt(nn.Module):
                 x_f = blk(x_f)
             
             x3_f = self.extra_norm3(x_f)
-            # x3_cam, x3_f = self.FRMs[2](x3_cam, x3_f)
-            # x_fused = self.FFMs[2](x3_cam, x3_f)
-            # outs.append(x_fused)
-            outs.append(x3_cam)
-            outs_event.append(x3_f)
+            x3_cam, x3_f = self.FRMs[2](x3_cam, x3_f)
+            x_fused = self.FFMs[2](x3_cam, x3_f)
+            outs.append(x_fused)
             x_ext = [x_.reshape(B, H, W, -1).permute(0, 3, 1, 2) + x3_f for x_ in x_ext] if self.num_modals > 1 else [x3_f]
         else:
             outs.append(x3_cam)
 
         # stage 4
         x_cam, H, W = self.patch_embed4(x3_cam)
-        if metric is not None:
-            metric_ = metric[3].flatten(2).transpose(1, 2)
-            # metric = torch.nn.functional.interpolate(input=metric, size=(H, W), mode='bilinear', align_corners=False)
-            # metric_ = metric.flatten(2).transpose(1, 2).repeat(1, 1, x_cam.shape[-1])
         for blk in self.block4:
-            x_cam = blk(x_cam, H, W, metric_)
+            x_cam = blk(x_cam, H, W)
         x4_cam = self.norm4(x_cam).reshape(B, H, W, -1).permute(0, 3, 1, 2)
         # if self.num_modals > 0:
         if self.with_events:
@@ -393,18 +368,13 @@ class CMNeXt(nn.Module):
                 x_f = blk(x_f)
             
             x4_f = self.extra_norm4(x_f)
-            # x4_cam, x4_f = self.FRMs[3](x4_cam, x4_f)
-            # x_fused = self.FFMs[3](x4_cam, x4_f)
-            # outs.append(x_fused)
-            outs.append(x4_cam)
-            outs_event.append(x4_f)
+            x4_cam, x4_f = self.FRMs[3](x4_cam, x4_f)
+            x_fused = self.FFMs[3](x4_cam, x4_f)
+            outs.append(x_fused)
         else:
             outs.append(x4_cam)
 
-        if x_ext is not None:
-            return outs, outs_event
-        else:
-            return outs
+        return outs
 
 
 if __name__ == '__main__':

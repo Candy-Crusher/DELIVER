@@ -23,59 +23,63 @@ import matplotlib.pyplot as plt
 import moviepy.editor
     
 class CMNeXt(BaseModel):
-    def __init__(self, backbone: str = 'CMNeXt-B0', num_classes: int = 25, modals: list = ['img', 'depth', 'event', 'lidar'], backbone_flag: bool=False, flow_net_flag: bool=False, dataset_type: str=None, anytime_flag: bool=False) -> None:
-        super().__init__(backbone, num_classes, modals, with_events=False,backbone_flag=backbone_flag,  flow_net_flag=flow_net_flag, dataset_type=dataset_type, anytime_flag=anytime_flag)
+    def __init__(self, backbone: str = 'CMNeXt-B0', num_classes: int = 25, modals: list = ['img', 'depth', 'event', 'lidar'], with_events=False, backbone_flag: bool=False, flow_net_flag: bool=False, dataset_type: str=None, anytime_flag: bool=False) -> None:
+        super().__init__(backbone, num_classes, modals, with_events=with_events,backbone_flag=backbone_flag,  flow_net_flag=flow_net_flag, dataset_type=dataset_type, anytime_flag=anytime_flag)
         self.decode_head = SegFormerHead(self.backbone.channels, 256 if 'B0' in backbone or 'B1' in backbone else 512, num_classes)
-        if self.flow_net_flag:
-            # self.flow_net = flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=3)
-            # # self.flow_nets = nn.ModuleList(
-            #     flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=feature_dims[i])
-            #     for i in range(len(feature_dims))
-            # )
-            self.n_first_channels = 4
-            self.flow_net = ERAFT(n_first_channels=self.n_first_channels)
-            # self.flow_net = RAFTSpline()
+        # if self.flow_net_flag:
+        #     # self.flow_net = flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=3)
+        #     # # self.flow_nets = nn.ModuleList(
+        #     #     flow_network(config=Config('semseg/models/modules/flow_network/FRMA/experiment.cfg'), feature_dim=feature_dims[i])
+        #     #     for i in range(len(feature_dims))
+        #     # )
+        #     self.n_first_channels = 4
+        #     self.flow_net = ERAFT(n_first_channels=self.n_first_channels)
+        #     # self.flow_net = RAFTSpline()
 
-        if not self.backbone_flag:
-        # if True:
-            feature_dims = [64, 128, 320, 512]
-            # feature_dims = [3]
-            self.softsplat_net = Synthesis(feature_dims, activation='PReLU')
+        # if not self.backbone_flag:
+        # # if True:
+        #     feature_dims = [64, 128, 320, 512]
+        #     # feature_dims = [3]
+        #     self.softsplat_net = Synthesis(feature_dims, activation='PReLU')
             
-            # self.MemoryEncoder = nn.ModuleList(
-            #     MemoryEncoder(in_dim=feature_dims[i], total_stride=2**i)
-            #     for i in range(len(feature_dims))
-            # )
+        #     # self.MemoryEncoder = nn.ModuleList(
+        #     #     MemoryEncoder(in_dim=feature_dims[i], total_stride=2**i)
+        #     #     for i in range(len(feature_dims))
+        #     # )
 
-            ### with memory ###
-            self.MemoryEncoder = MemoryEncoder(in_dim=feature_dims[-1], total_stride=8)
-            self.fusion_attens = MultiAttentionBlock(
-                                    dim=feature_dims[-1],
-                                    num_heads=8,
-                                    LayerNorm_type='WithBias',
-                                    ffn_expansion_factor=2.66,
-                                    bias=False,
-                                    is_DA=True
-                                )
-            ############################################
+        #     ### with memory ###
+        #     self.MemoryEncoder = MemoryEncoder(in_dim=feature_dims[-1], total_stride=8)
+        #     self.fusion_attens = MultiAttentionBlock(
+        #                             dim=feature_dims[-1],
+        #                             num_heads=8,
+        #                             LayerNorm_type='WithBias',
+        #                             ffn_expansion_factor=2.66,
+        #                             bias=False,
+        #                             is_DA=True
+        #                         )
+        #     ############################################
 
-            # self.fusion_attens = nn.ModuleList(
-            #     # Attention(dim=feature_dims[i], num_heads=8, bias=False)
-            #     MultiAttentionBlock(
-            #         dim=feature_dims[i],
-            #         num_heads=8,
-            #         LayerNorm_type='WithBias',
-            #         ffn_expansion_factor=2.66,
-            #         bias=False,
-            #         is_DA=True)
-            #     for i in range(len(feature_dims))
-            # )
+        #     # self.fusion_attens = nn.ModuleList(
+        #     #     # Attention(dim=feature_dims[i], num_heads=8, bias=False)
+        #     #     MultiAttentionBlock(
+        #     #         dim=feature_dims[i],
+        #     #         num_heads=8,
+        #     #         LayerNorm_type='WithBias',
+        #     #         ffn_expansion_factor=2.66,
+        #     #         bias=False,
+        #     #         is_DA=True)
+        #     #     for i in range(len(feature_dims))
+        #     # )
 
         self.apply(self._init_weights)
 
     def forward(self, x: list, rgb_next: Tensor=None, lookup_timestamps: list=[0.5, 1.0]) -> list:
         feature_init = self.backbone(x)
         y = []
+        if self.with_events:
+            y_mid = self.decode_head(feature_init)
+            y.append(F.interpolate(y_mid, size=x[0].shape[2:], mode='bilinear', align_corners=False))
+            return y
         if len(x) != 1:
             flows_split = []
             tenMetricones = []
