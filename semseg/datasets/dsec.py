@@ -243,7 +243,8 @@ class DSEC(Dataset):
                             flow = np.concatenate([flow_t0_t1, flow_t1_t2], axis=0)
                         sample['flow'] = torch.from_numpy(flow[:, :440])
             else:
-                rgb_path = get_new_name(lbl_path, idx_diff=0-self.index_window).replace(self.seg_gt_dirname, f'/leftImg8bit_t0').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
+                # rgb_path = get_new_name(lbl_path, idx_diff=0-self.index_window).replace(self.seg_gt_dirname, f'/leftImg8bit_t0').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
+                rgb_path = lbl_path.replace(self.seg_gt_dirname, f'/leftImg8bit_t1').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.png')
                 ### event ###
                 # event_path = get_new_name(lbl_path, idx_diff=0-self.index_window).replace(self.seg_gt_dirname, f'/event_t0_t{self.time_window}/event_{self.bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
                 # event_path_before = get_new_name(lbl_path, idx_diff=0-2*self.index_window).replace(self.seg_gt_dirname, f'/event_t-{self.time_window}_t0/event_{self.bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')

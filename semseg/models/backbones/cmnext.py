@@ -293,7 +293,10 @@ class CMNeXt(nn.Module):
         # if self.num_modals > 0:
         if self.with_events:
             bin=5
-            x_ext = [torch.cat([x[1][:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)]
+            # # events after I
+            # x_ext = [torch.cat([x[1][:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)]
+            # events before I
+            x_ext = [torch.cat([x[2][:, bin*i:bin*(i+1)].mean(1).unsqueeze(1) for i in range(20//bin)], dim=1)]
         B = x_cam.shape[0]
         outs = []
         # stage 1
