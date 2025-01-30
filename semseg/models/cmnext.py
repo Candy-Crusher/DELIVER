@@ -203,7 +203,7 @@ class CMNeXt(BaseModel):
                 # self.memory_bank = self.MemoryEncoder(feature_init[-1], y_t0).detach()
                 self.memory_bank = [feature_init[-1]]
                 # self.memory_bank = [feature_init]
-                self.visualize_feature("feature_init", feature_init[-1], save_path="feature_init.png")
+                # self.visualize_feature("feature_init", feature_init[-1], save_path="feature_init.png")
 
                 # t0 → t1
                 feature_t1 = self.softsplat_net(tenEncone=feature_init, tenForward=flow_t0_t1, event_voxel=ev_t0_t1)

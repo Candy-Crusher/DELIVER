@@ -9,7 +9,8 @@ python tools/val_mm.py \
     --scene dsec_${input_type}_${eval_dataset} \
     --classes 11 \
     --duration 50 \
-    --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch233_72.29.pth    # ours 100ms dsec
+    --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch146_72.02.pth  # ours 100ms dsec with MVSEC_20 pretrained eraft
+    # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch233_72.29.pth    # ours 100ms dsec
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch369_67.67.pth  # segformer
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch223_73.32.pth \  # ours w\o memory
     # --model_path output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch220_73.99.pth  # segformer

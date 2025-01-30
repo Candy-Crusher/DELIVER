@@ -199,8 +199,8 @@ class DSEC(Dataset):
         self.dataset_type = dataset_type
         self.iterframe_test = False
         # self.seg_gt_dirname = f'/gtFine_t1_interpolation'
-        self.seg_gt_dirname = f'/gtFine_t1'
-        # self.seg_gt_dirname = f'/gtFine_t{self.time_window}'
+        # self.seg_gt_dirname = f'/gtFine_t1'
+        self.seg_gt_dirname = f'/gtFine_t{self.time_window}'
         # dt = 1
         # self.seg_gt_dirname = f'/gtFine_t{self.time_window}_dt{dt}'
         print("Root: ", self.root)
@@ -249,8 +249,8 @@ class DSEC(Dataset):
                 # event_path_before = get_new_name(lbl_path, idx_diff=0-2*self.index_window).replace(self.seg_gt_dirname, f'/event_t-{self.time_window}_t0/event_{self.bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
                 event_path = get_new_name(lbl_path, idx_diff=0-self.index_window).replace(self.seg_gt_dirname, f'/event_t0_t1/event_{self.bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
                 event_path_before = get_new_name(lbl_path, idx_diff=0-self.index_window-self.index_window//self.time_window).replace(self.seg_gt_dirname, f'/event_t-1_t0/event_{self.bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
-                # if self.index_window == 2:
-                if self.index_window == 10:
+                if self.index_window == 2:
+                # if self.index_window == 10:
                     event_path_after = get_new_name(lbl_path, idx_diff=0-self.index_window+self.index_window//self.time_window).replace(self.seg_gt_dirname, f'/event_t1_t2/event_{self.bin}').replace(f'_gtFine_labelTrainIds{self.n_classes}.png', '.npy')
                     event_voxel_after = np.load(event_path_after, allow_pickle=True)
                     sample['event_after'] = torch.from_numpy(event_voxel_after[:, :440])
@@ -329,8 +329,8 @@ class DSEC(Dataset):
             del sample['event']
             event_voxel_before = sample['event_before']
             del sample['event_before']
-            # if self.index_window == 2:
-            if self.index_window == 10:
+            if self.index_window == 2:
+            # if self.index_window == 10:
                 event_voxel_after = sample['event_after']
                 del sample['event_after']
         # img_next = sample['img_next']
@@ -343,8 +343,8 @@ class DSEC(Dataset):
         if self.time_window != 0:
             sample.append(event_voxel)
             sample.append(event_voxel_before)
-            # if self.index_window == 2:
-            if self.index_window == 10:
+            if self.index_window == 2:
+            # if self.index_window == 10:
                 sample.append(event_voxel_after)
             if not self.flow_net_flag:
                 sample.append(flow)
