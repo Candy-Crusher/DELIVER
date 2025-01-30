@@ -251,6 +251,37 @@ def main(cfg, scene, classes, model_path, duration):
         # model = eval(cfg['MODEL']['NAME'])(cfg['MODEL']['BACKBONE'], 11, cfg['DATASET']['MODALS'], cfg['MODEL']['BACKBONE_FLAG'], cfg['MODEL']['FLOW_NET_FLAG'])
         msg = model.load_state_dict(torch.load(str(model_path), map_location='cuda'))
         print(msg)
+        ###### eraft robust ablation study ######
+
+        # for checkpoint download from eraft github
+        # resume_flownet_path = 'dsec.tar'
+        # resume_flownet_path = 'mvsec_20.tar'
+        # flownet_checkpoint = torch.load(resume_flownet_path, map_location=torch.device('cpu'))['model']
+        # if 'fnet.conv1.weight' in flownet_checkpoint:
+        #     # delete weights of the first layer
+        #     flownet_checkpoint.pop('fnet.conv1.weight')
+        #     flownet_checkpoint.pop('fnet.conv1.bias')
+        # if 'cnet.conv1.weight' in flownet_checkpoint:
+        #     # delete weights of the second layer
+        #     flownet_checkpoint.pop('cnet.conv1.weight')
+        #     flownet_checkpoint.pop('cnet.conv1.bias')
+
+        # for checkpoint from our models
+        # resume_flownet_path = 'model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch106_0.41733222244595924.pth'
+        # resume_flownet_path = '/home/xiaoshan/work/adap_v/DELIVER/output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch290_62.42.pth'
+        # resume_flownet_path = '/home/xiaoshan/work/adap_v/DELIVER/output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch227_63.84.pth'
+        resume_flownet_path = 'output/DSEC_CMNeXt-B2_i/model_day_11_CMNeXt_CMNeXt-B2_DSEC_epoch200_62.77.pth'
+        flownet_checkpoint = torch.load(resume_flownet_path, map_location=torch.device('cpu'), weights_only=True)
+        # 筛选出以 'flownet' 为前缀的键
+        # import ipdb; ipdb.set_trace()
+        flownet_checkpoint = {
+            key: value for key, value in flownet_checkpoint.items() if key.startswith('flow_net')
+        }
+        # 给所有key去掉前缀 'flow_net.'
+        flownet_checkpoint = {k.replace('flow_net.', ''): v for k, v in flownet_checkpoint.items()}
+
+        flownet_msg = model.flow_net.load_state_dict(flownet_checkpoint, strict=True)
+        #########################################
         model = model.to(device)
         # writer = SummaryWriter(str(save_dir))
         logger.info('================== model complexity =====================')
