@@ -53,7 +53,7 @@ def main(cfg, scene, classes, gpu, save_dir, duration):
     # valset = eval(dataset_cfg['NAME'])(dataset_cfg['ROOT'].replace("${DURATION}", str(duration)), 'train', classes, valtransform, dataset_cfg['MODALS'], duration=duration, flow_net_flag=model_cfg['FLOW_NET_FLAG'], dataset_type=dataset_cfg['TYPE'])
     class_names = trainset.SEGMENTATION_CONFIGS[classes]["CLASSES"]
 
-    model = eval(model_cfg['NAME'])(model_cfg['BACKBONE'], trainset.n_classes, dataset_cfg['MODALS'], model_cfg['BACKBONE_FLAG'], model_cfg['FLOW_NET_FLAG'], dataset_type=dataset_cfg['TYPE'], anytime_flag=False)
+    model = eval(model_cfg['NAME'])(model_cfg['BACKBONE'], trainset.n_classes, dataset_cfg['MODALS'], model_cfg['BACKBONE_FLAG'], model_cfg['FLOW_NET_FLAG'], dataset_type=dataset_cfg['TYPE'], anytime_flag=True)
     resume_checkpoint = None
     if os.path.isfile(resume_path):
         resume_checkpoint = torch.load(resume_path, map_location=torch.device('cpu'))
@@ -75,11 +75,12 @@ def main(cfg, scene, classes, gpu, save_dir, duration):
 
         if flow_net_type == 'eraft':
             ## for eraft
-            # if dataset_cfg['TYPE'] == 'dsec':
-            if dataset_cfg['TYPE'] == 'dsec_':
-                flownet_checkpoint = torch.load(resume_flownet_path, map_location=torch.device('cpu'), weights_only=True)['model']
-            elif dataset_cfg['TYPE'] == 'dsec':
-            # elif dataset_cfg['TYPE'] == 'sdsec':
+            if dataset_cfg['TYPE'] == 'dsec':
+            # if dataset_cfg['TYPE'] == 'dsec_':
+                # flownet_checkpoint = torch.load(resume_flownet_path, map_location=torch.device('cpu'), weights_only=True)['model']
+                flownet_checkpoint = torch.load(resume_flownet_path, map_location=torch.device('cpu'))['model']
+            # elif dataset_cfg['TYPE'] == 'dsec':
+            elif dataset_cfg['TYPE'] == 'sdsec':
                 # flownet_checkpoint = torch.load(resume_flownet_path, map_location=torch.device('cpu'))
                 flownet_checkpoint = torch.load(resume_flownet_path, map_location=torch.device('cpu'), weights_only=True)
                 # 筛选出以 'flownet' 为前缀的键
